@@ -1,0 +1,17 @@
+name: 'buf-push'
+description: >
+  Push buf module updates to the Buf Schema Registry.
+inputs:
+  buf_token:
+    description: 'The buf authentication token.'
+    required: true
+  branch:
+    description: 'The repository branch to push to.'
+    default: 'main'
+  input:
+    description: 'The input path.'
+    required: true
+    default: '.'
+runs:
+  using: 'node12'
+  main: './dist/main.js'
