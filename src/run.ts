@@ -6,7 +6,6 @@ import * as core from '@actions/core';
 import * as github from '@actions/github'
 import * as io from '@actions/io';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import cp from 'child_process';
 import { Error, isError } from './error';
@@ -18,60 +17,64 @@ import { Error, isError } from './error';
 // https://github.com/actions/toolkit/blob/4bf916289e5e32bb7d1bd7f21842c3afeab3b25a/packages/tool-cache/src/tool-cache.ts#L701
 const runnerTempEnvKey = 'RUNNER_TEMP'
 
-export async function run() {
+export async function run(): Promise<void> {
     try {
-        const result = await runPush()
-        if (isError(result)) {
-            core.setFailed(result.errorMessage);
+        const result = await runPush();
+        if (result !== null && isError(result)) {
+            core.setFailed(result.message);
         }
     } catch (error) {
         // In case we ever fail to catch an error
         // in the call chain, we catch the error
         // and mark the build as a failure. The
         // user is otherwise prone to false positives.
-        core.setFailed(error.message);
+        if (isError(error)) {
+            core.setFailed(error.message);
+            return;
+        }
+        core.setFailed('Internal error');
     }
 }
 
 // runPush runs the buf-push action, and returns
 // a non-empty error if it fails.
-async function runPush(): Promise<void|Error> {
+async function runPush(): Promise<null|Error> {
     const authenticationToken = core.getInput('buf_token');
     if (authenticationToken === '') {
         return {
-            errorMessage: 'a buf authentication token was not provided'
+            message: 'a buf authentication token was not provided'
         };
     }
     const branch = core.getInput('branch');
     if (branch === '') {
         return {
-            errorMessage: 'a repository branch was not provided'
+            message: 'a repository branch was not provided'
         };
     }
     const commit = github.context.sha;
     if (commit === '') {
         return {
-            errorMessage: 'the commit was not provided'
+            message: 'the commit was not provided'
         };
     }
     const input = core.getInput('input');
     if (input === '') {
         return {
-            errorMessage: 'an input was not provided'
+            message: 'an input was not provided'
         };
     }
     const binaryPath = await io.which('buf', true);
     if (binaryPath === '') {
         // TODO: Update this reference to a link once it's available.
         return {
-            errorMessage: 'buf is not installed; please add the "bufbuild/setup-buf" step to your job'
+            message: 'buf is not installed; please add the "bufbuild/setup-buf" step to your job'
         };
     }
 
-    const tempDir = process.env[runnerTempEnvKey] || '';
+    const tempDir = process.env[runnerTempEnvKey] ?? '';
     if (tempDir === '') {
         return {
-            errorMessage: `expected ${runnerTempEnvKey} to be defined`
+            message: `expected ${runnerTempEnvKey} to be defined`
         };
     }
 
@@ -90,4 +93,6 @@ async function runPush(): Promise<void|Error> {
             },
         },
     );
+
+    return null;
 }
