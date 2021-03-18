@@ -29,7 +29,7 @@ steps:
   - uses: actions/checkout@v2
   - uses: bufbuild/buf-setup-action@v0.1.0
     with:
-      version: '0.40.0' # The version of buf to download and use.
+      version: '0.40.0'
   - uses: bufbuild/buf-push-action@v0.1.0
     with:
       github_token: ${{ github.token }}
@@ -58,7 +58,7 @@ steps:
   - uses: actions/checkout@v2
   - uses: bufbuild/buf-setup-action@v0.1.0
     with:
-      version: '0.40.0' # The version of buf to download and use.
+      version: '0.40.0'
   - uses: bufbuild/buf-push-action@v0.1.0
     with:
       input: 'proto'
@@ -66,8 +66,47 @@ steps:
       buf_token: ${{ secrets.BUF_TOKEN }}
 ```
 
+### Validate before push
+
 The `buf-push` action is also commonly used alongside other `buf` actions,
 such as [buf-breaking][2] and [buf-lint][3].
+
+In combination, you can verify that your module passes both `buf-breaking`
+and `buf-lint` before the module is pushed to the BSR. The following example
+uses the hypothetical `https://github.com/acme/weather.git` repository,
+and includes a few additional `if` conditions to do exactly this.
+
+```yaml
+on:
+  push:
+    branches:
+      - main
+steps:
+  - uses: actions/checkout@v2
+  - uses: bufbuild/buf-setup-action@v0.1.0
+    id: setup
+    with:
+      version: '0.40.0'
+  - uses: bufbuild/buf-breaking-action@v0.1.0
+    if: ${{ steps.setup.outcome == 'success' }}
+    env:
+      BUF_INPUT_HTTPS_USERNAME: ${{ github.actor }}
+      BUF_INPUT_HTTPS_PASSWORD: ${{ github.token }}
+    with:
+      input: 'proto'
+      against: 'https://github.com/acme/weather.git#branch=master,ref=HEAD~1,subdir=proto'
+      github_token: ${{ github.token }}
+  - uses: bufbuild/buf-lint-action@v0.1.0
+    if: ${{ steps.setup.outcome == 'success' }}
+    with:
+      input: 'proto'
+      github_token: ${{ github.token }}
+  - uses: bufbuild/buf-push-action@v0.1.0
+    if: success() # Only trigger the 'buf-push-action' if all previous steps succeed.
+    with:
+      input: 'proto'
+      buf_token: ${{ secrets.BUF_TOKEN }}
+```
 
   [1]: https://github.com/marketplace/actions/buf-setup
   [2]: https://github.com/marketplace/actions/buf-breaking
