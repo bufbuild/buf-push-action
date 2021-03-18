@@ -15,7 +15,7 @@ runner, so we'll use the [buf-setup][1] action to install it.
 
 ### Basic
 
-In most cases, all you'll need to do is configure `setup-buf` and the
+In most cases, all you'll need to do is configure [buf-setup][1] and the
 `buf_token` (used to authenticate access to the BSR). For details on
 creating a `buf` API token, please refer to the
 [documentation](https://beta.docs.buf.build/authentication#create-an-api-token).
