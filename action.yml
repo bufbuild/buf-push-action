@@ -1,6 +1,9 @@
 name: 'buf-push'
 description: >
   Push buf module updates to the Buf Schema Registry.
+branding:
+  icon: arrow-up
+  color: blue
 inputs:
   buf_token:
     description: 'The buf authentication token.'
