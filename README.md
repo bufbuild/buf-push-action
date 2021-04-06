@@ -29,7 +29,7 @@ steps:
   - uses: actions/checkout@v2
   - uses: bufbuild/buf-setup-action@v0.1.0
     with:
-      version: '0.40.0'
+      version: '0.41.0'
   - uses: bufbuild/buf-push-action@v0.1.0
     with:
       github_token: ${{ github.token }}
@@ -58,7 +58,7 @@ steps:
   - uses: actions/checkout@v2
   - uses: bufbuild/buf-setup-action@v0.1.0
     with:
-      version: '0.40.0'
+      version: '0.41.0'
   - uses: bufbuild/buf-push-action@v0.1.0
     with:
       input: 'proto'
@@ -86,8 +86,8 @@ steps:
   - uses: bufbuild/buf-setup-action@v0.1.0
     id: setup
     with:
-      version: '0.40.0'
-  - uses: bufbuild/buf-breaking-action@v0.1.0
+      version: '0.41.0'
+  - uses: bufbuild/buf-breaking-action@v0.2.0
     if: ${{ steps.setup.outcome == 'success' }}
     env:
       BUF_INPUT_HTTPS_USERNAME: ${{ github.actor }}
@@ -96,7 +96,7 @@ steps:
       input: 'proto'
       against: 'https://github.com/acme/weather.git#branch=master,ref=HEAD~1,subdir=proto'
       github_token: ${{ github.token }}
-  - uses: bufbuild/buf-lint-action@v0.1.0
+  - uses: bufbuild/buf-lint-action@v0.2.0
     if: ${{ steps.setup.outcome == 'success' }}
     with:
       input: 'proto'
