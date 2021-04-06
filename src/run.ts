@@ -65,9 +65,8 @@ async function runPush(): Promise<null|Error> {
     }
     const binaryPath = await io.which('buf', true);
     if (binaryPath === '') {
-        // TODO: Update this reference to a link once it's available.
         return {
-            message: 'buf is not installed; please add the "bufbuild/setup-buf" step to your job'
+            message: 'buf is not installed; please add the "bufbuild/buf-setup-action" step to your job found at https://github.com/bufbuild/buf-setup-action'
         };
     }
 
