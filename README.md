@@ -30,7 +30,7 @@ steps:
   - uses: bufbuild/buf-setup-action@v0.1.0
     with:
       version: '0.41.0'
-  - uses: bufbuild/buf-push-action@v0.1.0
+  - uses: bufbuild/buf-push-action@v0.2.0
     with:
       github_token: ${{ github.token }}
       buf_token: ${{ secrets.BUF_TOKEN }}
@@ -59,7 +59,7 @@ steps:
   - uses: bufbuild/buf-setup-action@v0.1.0
     with:
       version: '0.41.0'
-  - uses: bufbuild/buf-push-action@v0.1.0
+  - uses: bufbuild/buf-push-action@v0.2.0
     with:
       input: 'proto'
       github_token: ${{ github.token }}
@@ -101,7 +101,7 @@ steps:
     with:
       input: 'proto'
       github_token: ${{ github.token }}
-  - uses: bufbuild/buf-push-action@v0.1.0
+  - uses: bufbuild/buf-push-action@v0.2.0
     if: success() # Only trigger the 'buf-push-action' if all previous steps succeed.
     with:
       input: 'proto'
