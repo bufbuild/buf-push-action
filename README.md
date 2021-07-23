@@ -65,34 +65,32 @@ steps:
 The `buf-push` action is also commonly used alongside other `buf` actions,
 such as [buf-breaking][2] and [buf-lint][3].
 
-In combination, you can verify that your module passes both `buf-breaking`
-and `buf-lint` before the module is pushed to the BSR. The following example
-uses the hypothetical `https://github.com/acme/weather.git` repository,
-and includes a few additional `if` conditions to do exactly this.
+In combination, you can verify that your module passes both `buf-lint`
+and `buf-breaking` before the module is pushed to the BSR. The following example
+uses the hypothetical `https://github.com/acme/weather.git` repository.
 
 ```yaml
 on:
   push:
     branches:
       - main
-steps:
-  - uses: actions/checkout@v2
-  - uses: bufbuild/buf-setup-action@v0.3.1
-    id: setup
-  - uses: bufbuild/buf-breaking-action@v0.4.0
-    if: ${{ steps.setup.outcome == 'success' }}
-    with:
-      input: 'proto'
-      against: 'https://github.com/acme/weather.git#branch=master,ref=HEAD~1,subdir=proto'
-  - uses: bufbuild/buf-lint-action@v0.3.0
-    if: ${{ steps.setup.outcome == 'success' }}
-    with:
-      input: 'proto'
-  - uses: bufbuild/buf-push-action@v0.2.0
-    if: success() # Only trigger the 'buf-push-action' if all previous steps succeed.
-    with:
-      input: 'proto'
-      buf_token: ${{ secrets.BUF_TOKEN }}
+jobs:
+  validate-and-push-protos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - uses: bufbuild/buf-setup-action@v0.3.1
+      - uses: bufbuild/buf-lint-action@v0.3.0
+        with:
+          input: 'proto'
+      - uses: bufbuild/buf-breaking-action@v0.4.0
+        with:
+          input: 'proto'
+          against: 'https://github.com/acme/weather.git#branch=master,ref=HEAD~1,subdir=proto'
+      - uses: bufbuild/buf-push-action@v0.2.0
+        with:
+          input: 'proto'
+          buf_token: ${{ secrets.BUF_TOKEN }}
 ```
 
   [1]: https://github.com/marketplace/actions/buf-setup
