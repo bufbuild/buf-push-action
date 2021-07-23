@@ -27,12 +27,9 @@ for it. In the following example, the API token is set to `BUF_TOKEN`.
 ```yaml
 steps:
   - uses: actions/checkout@v2
-  - uses: bufbuild/buf-setup-action@v0.1.0
-    with:
-      version: '0.41.0'
+  - uses: bufbuild/buf-setup-action@v0.3.1
   - uses: bufbuild/buf-push-action@v0.2.0
     with:
-      github_token: ${{ github.token }}
       buf_token: ${{ secrets.BUF_TOKEN }}
 ```
 
@@ -56,13 +53,10 @@ $ tree
 ```yaml
 steps:
   - uses: actions/checkout@v2
-  - uses: bufbuild/buf-setup-action@v0.1.0
-    with:
-      version: '0.41.0'
+  - uses: bufbuild/buf-setup-action@v0.3.1
   - uses: bufbuild/buf-push-action@v0.2.0
     with:
       input: 'proto'
-      github_token: ${{ github.token }}
       buf_token: ${{ secrets.BUF_TOKEN }}
 ```
 
@@ -83,24 +77,17 @@ on:
       - main
 steps:
   - uses: actions/checkout@v2
-  - uses: bufbuild/buf-setup-action@v0.1.0
+  - uses: bufbuild/buf-setup-action@v0.3.1
     id: setup
-    with:
-      version: '0.41.0'
-  - uses: bufbuild/buf-breaking-action@v0.2.0
+  - uses: bufbuild/buf-breaking-action@v0.4.0
     if: ${{ steps.setup.outcome == 'success' }}
-    env:
-      BUF_INPUT_HTTPS_USERNAME: ${{ github.actor }}
-      BUF_INPUT_HTTPS_PASSWORD: ${{ github.token }}
     with:
       input: 'proto'
       against: 'https://github.com/acme/weather.git#branch=master,ref=HEAD~1,subdir=proto'
-      github_token: ${{ github.token }}
-  - uses: bufbuild/buf-lint-action@v0.2.0
+  - uses: bufbuild/buf-lint-action@v0.3.0
     if: ${{ steps.setup.outcome == 'success' }}
     with:
       input: 'proto'
-      github_token: ${{ github.token }}
   - uses: bufbuild/buf-push-action@v0.2.0
     if: success() # Only trigger the 'buf-push-action' if all previous steps succeed.
     with:
