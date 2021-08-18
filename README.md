@@ -28,7 +28,7 @@ for it. In the following example, the API token is set to `BUF_TOKEN`.
 steps:
   - uses: actions/checkout@v2
   - uses: bufbuild/buf-setup-action@v0.3.1
-  - uses: bufbuild/buf-push-action@v0.2.0
+  - uses: bufbuild/buf-push-action@v0.3.0
     with:
       buf_token: ${{ secrets.BUF_TOKEN }}
 ```
@@ -54,7 +54,7 @@ $ tree
 steps:
   - uses: actions/checkout@v2
   - uses: bufbuild/buf-setup-action@v0.3.1
-  - uses: bufbuild/buf-push-action@v0.2.0
+  - uses: bufbuild/buf-push-action@v0.3.0
     with:
       input: 'proto'
       buf_token: ${{ secrets.BUF_TOKEN }}
@@ -87,7 +87,7 @@ jobs:
         with:
           input: 'proto'
           against: 'https://github.com/acme/weather.git#branch=master,ref=HEAD~1,subdir=proto'
-      - uses: bufbuild/buf-push-action@v0.2.0
+      - uses: bufbuild/buf-push-action@v0.3.0
         with:
           input: 'proto'
           buf_token: ${{ secrets.BUF_TOKEN }}
