@@ -55,12 +55,6 @@ async function runPush(): Promise<null|Error> {
             message: 'a buf authentication token was not provided'
         };
     }
-    const branch = core.getInput('branch');
-    if (branch === '') {
-        return {
-            message: 'a repository branch was not provided'
-        };
-    }
     const commit = github.context.sha;
     if (commit === '') {
         return {
@@ -94,7 +88,7 @@ async function runPush(): Promise<null|Error> {
     fs.writeFileSync(netrcPath, `machine buf.build\npassword ${authenticationToken}`, { flag: 'w' });
 
     cp.execSync(
-        `${binaryPath} beta push -t ${commit}`,
+        `${binaryPath} push -t ${commit}`,
         {
             cwd: input,
             env: {
