@@ -17,8 +17,14 @@ import * as github from '@actions/github'
 import * as io from '@actions/io';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as semver from 'semver';
 import cp from 'child_process';
 import { Error, isError } from './error';
+
+// modPushBufVersion is the version when the buf CLI changed
+// its command from 'buf push' to 'buf mod push'.
+// https://github.com/bufbuild/buf/releases/tag/v1.0.0-rc1
+const modPushBufVersion = '1.0.0'
 
 // runnerTempEnvKey is the environment variable key
 // used to access a temporary directory. Although
@@ -81,6 +87,26 @@ async function runPush(): Promise<null|Error> {
         };
     }
 
+    const version = bufVersion(binaryPath);
+    if (isError(version)) {
+        return version;
+    }
+
+    // We must use semver.coerce so that release candidate suffixes are handled (e.g. v1.0.0-rc1).
+    const coercedVersion = semver.coerce(version);
+    if (coercedVersion == null) {
+        return {
+          message: `failed to coerce version ${version}.`
+        };
+    }
+
+    let command: string;
+    if (semver.lt(coercedVersion, modPushBufVersion)) {
+        command = 'push'
+    } else {
+        command = 'mod push'
+    }
+
     // TODO: For now, we hard-code the 'buf.build' remote. This will
     // need to be refactored once we support federation between other
     // BSR remotes.
@@ -88,7 +114,7 @@ async function runPush(): Promise<null|Error> {
     fs.writeFileSync(netrcPath, `machine buf.build\npassword ${authenticationToken}`, { flag: 'w' });
 
     cp.execSync(
-        `${binaryPath} push -t ${commit}`,
+        `${binaryPath} ${command} -t ${commit}`,
         {
             cwd: input,
             env: {
@@ -98,4 +124,27 @@ async function runPush(): Promise<null|Error> {
     );
 
     return null;
+}
+
+// bufVersion returns the version of the buf binary.
+function bufVersion(binaryPath: string): string | Error {
+    let version = '';
+    try {
+      version = cp.execSync(`${binaryPath} version`).toString();
+    } catch {
+      core.info(`${binaryPath} does not support the 'version' sub-command`)
+    }
+    if (version === '') {
+      try {
+        version = cp.execSync(`${binaryPath} --version 2>&1`).toString();
+      } catch {
+        core.info(`${binaryPath} does not support the '--version' flag`)
+      }
+    }
+    if (version === '') {
+        return {
+          message: `${binaryPath} does not support the 'version' sub-command or the '--version' flag.`
+        };
+    }
+    return version
 }
