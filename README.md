@@ -27,8 +27,8 @@ for it. In the following example, the API token is set to `BUF_TOKEN`.
 ```yaml
 steps:
   - uses: actions/checkout@v2
-  - uses: bufbuild/buf-setup-action@v0.3.1
-  - uses: bufbuild/buf-push-action@v0.3.0
+  - uses: bufbuild/buf-setup-action@v0.5.0
+  - uses: bufbuild/buf-push-action@v1
     with:
       buf_token: ${{ secrets.BUF_TOKEN }}
 ```
@@ -53,8 +53,8 @@ $ tree
 ```yaml
 steps:
   - uses: actions/checkout@v2
-  - uses: bufbuild/buf-setup-action@v0.3.1
-  - uses: bufbuild/buf-push-action@v0.3.0
+  - uses: bufbuild/buf-setup-action@v0.5.0
+  - uses: bufbuild/buf-push-action@v1
     with:
       input: 'proto'
       buf_token: ${{ secrets.BUF_TOKEN }}
@@ -79,15 +79,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: bufbuild/buf-setup-action@v0.3.1
-      - uses: bufbuild/buf-lint-action@v0.3.0
+      - uses: bufbuild/buf-setup-action@v0.5.0
+      - uses: bufbuild/buf-lint-action@v1
         with:
           input: 'proto'
-      - uses: bufbuild/buf-breaking-action@v0.4.0
+      - uses: bufbuild/buf-breaking-action@v1
         with:
           input: 'proto'
           against: 'https://github.com/acme/weather.git#branch=master,ref=HEAD~1,subdir=proto'
-      - uses: bufbuild/buf-push-action@v0.3.0
+      - uses: bufbuild/buf-push-action@v1
         with:
           input: 'proto'
           buf_token: ${{ secrets.BUF_TOKEN }}
