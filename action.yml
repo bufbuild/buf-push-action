@@ -10,7 +10,6 @@ inputs:
     required: true
   input:
     description: 'The input path.'
-    required: true
     default: '.'
 runs:
   using: 'node12'
