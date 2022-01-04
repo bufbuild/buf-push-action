@@ -27,7 +27,7 @@ for it. In the following example, the API token is set to `BUF_TOKEN`.
 ```yaml
 steps:
   - uses: actions/checkout@v2
-  - uses: bufbuild/buf-setup-action@v0.5.0
+  - uses: bufbuild/buf-setup-action@v0.6.0
   - uses: bufbuild/buf-push-action@v1
     with:
       buf_token: ${{ secrets.BUF_TOKEN }}
@@ -53,7 +53,7 @@ $ tree
 ```yaml
 steps:
   - uses: actions/checkout@v2
-  - uses: bufbuild/buf-setup-action@v0.5.0
+  - uses: bufbuild/buf-setup-action@v0.6.0
   - uses: bufbuild/buf-push-action@v1
     with:
       input: 'proto'
@@ -79,7 +79,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: bufbuild/buf-setup-action@v0.5.0
+      - uses: bufbuild/buf-setup-action@v0.6.0
       - uses: bufbuild/buf-lint-action@v1
         with:
           input: 'proto'
