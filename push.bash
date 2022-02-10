@@ -30,4 +30,4 @@ if [ -z "$BUF_COMMAND" ]; then
   fail "$NOT_INSTALLED_MESSAGE"
 fi
 
-"${BUF_COMMAND}" push --tag "${GITHUB_SHA}" .
+"${BUF_COMMAND}" push --tag "${GITHUB_SHA}" "${BUF_INPUT}"
