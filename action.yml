@@ -11,6 +11,13 @@ inputs:
   input:
     description: 'The input path.'
     default: '.'
+    required: false
 runs:
-  using: 'node12'
-  main: './dist/main.js'
+  using: composite
+  steps:
+    - name: push
+      shell: bash
+      working-directory: ${{ inputs.input }}
+      env:
+        BUF_TOKEN: ${{ inputs.buf_token }}
+      run: "./push.bash"
