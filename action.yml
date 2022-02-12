@@ -1,4 +1,4 @@
-name: 'buf-push'
+name: buf-push
 description: >
   Push buf module updates to the Buf Schema Registry.
 branding:
@@ -6,10 +6,10 @@ branding:
   color: blue
 inputs:
   buf_token:
-    description: 'The buf authentication token.'
+    description: The Buf authentication token.
     required: true
   input:
-    description: 'The input path.'
+    description: The Input path.
     default: '.'
 runs:
   using: 'node12'

@@ -1,9 +1,51 @@
-# buf-push-action
+# `buf-push-action`
 
-Push [buf](https://github.com/bufbuild/buf) modules to the
-[Buf Schema Registry](https://buf.build) (BSR). The pushed
-module will be created with a module tag equal to the git
-commit SHA.
+This Action enables you to push [Buf modules][modules] to the [Buf Schema Registry][bsr] (BSR)
+Pushed modules are created with the Git commit SHA as the module tag.
+
+`buf-push-action` is frequently used alongside other Buf Actions, such as
+[`buf-breaking-action`][buf-breaking] and [`buf-lint-action`][buf-lint].
+
+## Usage
+
+Here's an example usage of `buf-push-action`:
+
+```yaml
+on: pull_request # Apply to all pull requests
+jobs:
+  push-module:
+    # Run `git checkout`
+    - uses: actions/checkout@v2
+    # Install the `buf` CLI
+    - uses: bufbuild/buf-setup-action@v0.6.0
+    # Push module to the BSR
+    - uses: bufbuild/buf-push-action@v1
+      with:
+        buf_token: ${{ secrets.BUF_TOKEN }}
+```
+
+With this configuration, the `buf` CLI pushes the [configured module][buf-yaml] to the BSR upon
+merge.
+
+## Prerequisites
+
+For `buf-push-action` to run, you need to install the `buf` CLI in the GitHub Actions Runner first.
+We recommend using [`buf-setup-action`][buf-setup] to install it (as in the example above).
+
+## Configuration
+
+Parameter | Description | Required | Default
+:---------|:------------|:---------|:-------
+`buf_token` | The [Buf authentication token][buf-token] used for private [Inputs][input] | ✅  | [`${{github.token}}`][github-token]
+`input` | The path of the [Input] you want to push to BSR as a module | | `.`
+
+> These parameters are derived from [`action.yml`][./action.yml].
+
+## Common tasks
+
+
+
+---
 
 ## Usage
 
@@ -93,6 +135,12 @@ jobs:
           buf_token: ${{ secrets.BUF_TOKEN }}
 ```
 
-  [1]: https://github.com/marketplace/actions/buf-setup
-  [2]: https://github.com/marketplace/actions/buf-breaking
-  [3]: https://github.com/marketplace/actions/buf-lint
+[bsr]: https://docs.buf.build/bsr
+[buf-breaking]: https://github.com/marketplace/actions/buf-breaking
+[buf-lint]: https://github.com/marketplace/actions/buf-lint
+[buf-setup]: https://github.com/marketplace/actions/buf-setup
+[buf-token]: https://docs.buf.build/bsr/authentication#create-an-api-token
+[buf-yaml]: https://docs.buf.build/configuration/v1/buf-yaml
+[github-token]: https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
+[input]: https://docs.buf.build/reference/inputs
+[modules]: https://docs.buf.build/bsr/overview#module
