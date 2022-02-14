@@ -25,7 +25,11 @@ jobs:
 ```
 
 With this configuration, the `buf` CLI pushes the [configured module][buf-yaml] to the BSR upon
-merge.
+merge using a Buf API token to authenticate with the [Buf Schema Registry][bsr] (BSR).
+
+For instructions on creating a BSR API token, see our [official docs][bsr-token]. Once you've
+created a an API token, you need to create an encrypted [Github Secret][github-secret] for it. In
+this example, the API token is set to the `BUF_TOKEN` secret.
 
 ## Prerequisites
 
@@ -43,43 +47,10 @@ Parameter | Description | Required | Default
 
 ## Common tasks
 
+### Run against Input in sub-directory
 
-
----
-
-## Usage
-
-Refer to the [action.yml](https://github.com/bufbuild/buf-push-action/blob/master/action.yml)
-to see all of the action parameters.
-
-The `buf-push` action requires that `buf` is installed in the Github Action
-runner, so we'll use the [buf-setup][1] action to install it.
-
-### Basic
-
-In most cases, all you'll need to do is configure [buf-setup][1] and the
-`buf_token` (used to authenticate access to the BSR). For details on
-creating a `buf` API token, please refer to the
-[documentation](https://beta.docs.buf.build/authentication#create-an-api-token).
-
-Once you've created a `buf` API token, you'll need to create an encrypted
-[Github Secret](https://docs.github.com/en/actions/reference/encrypted-secrets)
-for it. In the following example, the API token is set to `BUF_TOKEN`.
-
-```yaml
-steps:
-  - uses: actions/checkout@v2
-  - uses: bufbuild/buf-setup-action@v0.6.0
-  - uses: bufbuild/buf-push-action@v1
-    with:
-      buf_token: ${{ secrets.BUF_TOKEN }}
-```
-
-### Inputs
-
-Some repositories are structured so that their `buf.yaml` is defined
-in a sub-directory alongside their Protobuf sources, such as a `proto/`
-directory. In this case, you can specify the relative `input` path.
+Some repositories are structured so that their [`buf.yaml`][buf-yaml] configuration file is defined
+in a sub-directory alongside their Protobuf sources, such as a `proto` directory. Here's an example:
 
 ```sh
 $ tree
@@ -92,27 +63,30 @@ $ tree
     └── buf.yaml
 ```
 
+In that case, you can target the `proto` sub-directory by setting `input` to `proto`:
+
 ```yaml
 steps:
+  # Run `git checkout`
   - uses: actions/checkout@v2
+  # Install the `buf` CLI
   - uses: bufbuild/buf-setup-action@v0.6.0
+  # Push only the Input in `proto` to the BSR
   - uses: bufbuild/buf-push-action@v1
     with:
-      input: 'proto'
+      input: proto
       buf_token: ${{ secrets.BUF_TOKEN }}
 ```
 
 ### Validate before push
 
-The `buf-push` action is also commonly used alongside other `buf` actions,
-such as [buf-breaking][2] and [buf-lint][3].
-
-In combination, you can verify that your module passes both `buf-lint`
-and `buf-breaking` before the module is pushed to the BSR. The following example
-uses the hypothetical `https://github.com/acme/weather.git` repository.
+`buf-push-action` is typically used alongside other `buf` Actions, such as
+[`buf-breaking-action`][buf-breaking] and [`buf-lint-action`][buf-lint]. A common use case is to
+"validate" a Buf module before pushing it to the [BSR] by ensuring that it passes both
+[lint] and [breaking change][breaking] checks, as in this example:
 
 ```yaml
-on:
+on: # Apply to all pushes to `main`
   push:
     branches:
       - main
@@ -120,27 +94,32 @@ jobs:
   validate-and-push-protos:
     runs-on: ubuntu-latest
     steps:
+      # Run `git checkout`
       - uses: actions/checkout@v2
+      # Install the `buf` CLI
       - uses: bufbuild/buf-setup-action@v0.6.0
+      # Run a lint check on Protobuf sources
       - uses: bufbuild/buf-lint-action@v1
-        with:
-          input: 'proto'
+      # Run breaking change detection for Protobuf sources against the current `main` branch
       - uses: bufbuild/buf-breaking-action@v1
         with:
-          input: 'proto'
-          against: 'https://github.com/acme/weather.git#branch=master,ref=HEAD~1,subdir=proto'
+          against: https://github.com/acme/weather.git#branch=main,ref=HEAD~1,subdir=proto
+      # Push the validated module to the BSR
       - uses: bufbuild/buf-push-action@v1
         with:
-          input: 'proto'
           buf_token: ${{ secrets.BUF_TOKEN }}
 ```
 
+[breaking]: https://docs.buf.build/breaking
 [bsr]: https://docs.buf.build/bsr
+[bsr-token]: https://docs.buf.build/bsr/authentication
 [buf-breaking]: https://github.com/marketplace/actions/buf-breaking
 [buf-lint]: https://github.com/marketplace/actions/buf-lint
 [buf-setup]: https://github.com/marketplace/actions/buf-setup
 [buf-token]: https://docs.buf.build/bsr/authentication#create-an-api-token
 [buf-yaml]: https://docs.buf.build/configuration/v1/buf-yaml
+[github-secret]: https://docs.github.com/en/actions/reference/encrypted-secrets
 [github-token]: https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
 [input]: https://docs.buf.build/reference/inputs
+[lint]: https://docs.buf.build/lint
 [modules]: https://docs.buf.build/bsr/overview#module
