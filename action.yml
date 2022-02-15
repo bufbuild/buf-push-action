@@ -19,5 +19,4 @@ runs:
       shell: bash
       env:
         BUF_TOKEN: ${{ inputs.buf_token }}
-        BUF_INPUT: ${{ inputs.input }}
-      run: "./push.bash"
+      run: ./push.bash ${{ inputs.input }}

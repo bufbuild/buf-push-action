@@ -7,6 +7,13 @@ fail() {
   exit 1
 }
 
+if [ $# -ne 1 ]; then
+  echo "Usage: $0 <input>"
+  exit 1
+fi
+
+BUF_INPUT="$1"
+
 # Make sure the token isn't accidentally logged
 echo "::add-mask::${BUF_TOKEN}"
 
