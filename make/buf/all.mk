@@ -19,8 +19,6 @@ else ifeq ($(findstring msys,$(GOOS)),msys)
 	GOOS := windows
 else ifeq ($(findstring cygwin,$(GOOS)),cygwin)
 	GOOS := windows
-else ifeq ($(findstring win,$(GOOS)),win)
-	GOOS := windows
 endif
 
 include make/buf/dep_yq.mk
