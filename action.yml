@@ -25,6 +25,8 @@ runs:
       env:
         CACHE: ${{ runner.temp }}/${{ github.action }}
       run: make yq
+    - run: yq --help
+      shell: bash
     - name: push
       shell: bash
       env:
