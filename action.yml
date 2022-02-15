@@ -15,6 +15,16 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: set path
+      shell: bash
+      env:
+        CACHE: ${{ runner.temp }}/${{ github.action }}
+      run: echo "${CACHE}/bin" >> "${GITHUB_PATH}"
+    - name: install yq
+      shell: bash
+      env:
+        CACHE: ${{ runner.temp }}/${{ github.action }}
+      run: make yq
     - name: push
       shell: bash
       env:
