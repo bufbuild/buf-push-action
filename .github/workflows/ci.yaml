@@ -17,7 +17,7 @@ jobs:
     steps:
       - name: install yq
         shell: bash
-        run: go install github.com/mikefarah/yq/v4@v4.20.1
+        run: GO111MODULE=on go install github.com/mikefarah/yq/v4@v4.20.1
       - uses: actions/checkout@v2
       - name: setup fake buf
         shell: bash
