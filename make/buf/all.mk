@@ -13,6 +13,15 @@ else ifeq ($(GOARCH), x86)
 endif
 # Settable
 GOOS ?= $(shell echo $(shell uname -s) | tr '[:upper:]' '[:lower:]')
+ifeq ($(findstring mingw,$(GOOS)),mingw)
+	GOOS := windows
+else ifeq ($(findstring msys,$(GOOS)),msys)
+	GOOS := windows
+else ifeq ($(findstring cygwin,$(GOOS)),cygwin)
+	GOOS := windows
+else ifeq ($(findstring win,$(GOOS)),win)
+	GOOS := windows
+endif
 
 include make/buf/dep_yq.mk
 
