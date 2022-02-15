@@ -26,8 +26,8 @@ runs:
       with:
         path: ${{ runner.temp }}/${{ github.action }}
         key: ${{ github.action }}-${{ runner.os }}-${{ hashFiles('${{ github.action_path }}/make/**') }}-${{ hashFiles('${{ github.action_path }}/action.yml') }}
-        restore-keys:
-          - ${{ github.action }}-${{ runner.os }}-
+        restore-keys: |
+          ${{ github.action }}-${{ runner.os }}-
     - name: install yq
       shell: bash
       run: make yq
