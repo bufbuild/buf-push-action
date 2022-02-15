@@ -24,12 +24,10 @@ fi
 
 NOT_INSTALLED_MESSAGE='buf is not installed; please add the "bufbuild/buf-setup-action" step to your job found at https://github.com/bufbuild/buf-setup-action'
 
-BUF_COMMAND="$(type -P buf)" ||   fail "$NOT_INSTALLED_MESSAGE"
+BUF_COMMAND="$(type -P buf)" || fail "$NOT_INSTALLED_MESSAGE"
 
 if [ -z "$BUF_COMMAND" ]; then
   fail "$NOT_INSTALLED_MESSAGE"
 fi
 
-export BUF_TOKEN
-
-"${BUF_COMMAND}" push --tag "${GITHUB_SHA}" "${BUF_INPUT}"
+BUF_TOKEN=${BUF_TOKEN} "${BUF_COMMAND}" push --tag "${GITHUB_SHA}" "${BUF_INPUT}"
