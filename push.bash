@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-set -euo pipefail
+set -eo pipefail
 
 fail() {
   echo "::error::$1"
@@ -8,7 +8,7 @@ fail() {
 }
 
 if [ $# -ne 1 ]; then
-  echo "Usage: $0 <input>"
+  echo "Usage: $0 <input>" >&2
   exit 1
 fi
 
@@ -23,10 +23,6 @@ fi
 
 if [ -z "${BUF_TOKEN}" ]; then
   fail "a buf authentication token was not provided"
-fi
-
-if [ -z "${BUF_INPUT}" ]; then
-  fail "an input was not provided"
 fi
 
 NOT_INSTALLED_MESSAGE='buf is not installed; please add the "bufbuild/buf-setup-action" step to your job found at https://github.com/bufbuild/buf-setup-action'
