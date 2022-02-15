@@ -3,7 +3,7 @@ YQ_VERSION ?= v4.20.1
 
 YQ_URL := https://github.com/mikefarah/yq/releases/download/$(YQ_VERSION)/yq_$(GOOS)_$(GOARCH)
 
-ifeq ($(GOOS),"windows")
+ifeq ($(GOOS), windows)
 	YQ_URL := $(YQ_URL).exe
 endif
 
