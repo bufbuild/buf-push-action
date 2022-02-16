@@ -31,3 +31,7 @@ jobs:
         env:
           WANT_BUF_TOKEN: fake-buf-token
           WANT_ARGS: push --tag ${{ github.sha }} path/to/input
+      - name: check path
+        shell: bash
+        run: |
+          echo "PATH: ${PATH}"
