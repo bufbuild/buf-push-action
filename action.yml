@@ -20,7 +20,9 @@ runs:
       env:
         CACHE: ${{ runner.temp }}/${{ github.action }}
       run: |
+        echo "${CACHE}/bin"
         echo "${CACHE}/bin" >> "${GITHUB_PATH}"
+        echo "CACHE=${CACHE}"
         echo "CACHE=${CACHE}" >> "${GITHUB_ENV}"
         make yq
     - shell: bash
