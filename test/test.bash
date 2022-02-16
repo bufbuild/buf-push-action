@@ -5,6 +5,8 @@ set -euo pipefail
 DIR="$(cd "$(dirname "${0}")/.." && pwd)"
 cd "${DIR}"
 
+. lib.bash
+
 mkdir -p "${DIR}/tmp/test/bin"
 trap 'rm -rf "${DIR}/tmp/test"' EXIT
 
@@ -17,7 +19,7 @@ chmod +x tmp/test/bin/buf
 unset GITHUB_SHA
 
 test_push() {
-  export GITHUB_SHA BUF_TOKEN WANT_BUF_TOKEN WANT_ARGS
+  export GITHUB_SHA BUF_TOKEN WANT_BUF_TOKEN WANT_ARGS BUF_VERSION
   set +e
   ./push.bash "$@" > tmp/test/stdout 2> tmp/test/stderr
   GOT_EXIT_CODE="${?}"
@@ -39,7 +41,7 @@ test_push() {
     fi
   fi
   rm -f tmp/test/stdout tmp/test/stderr
-  unset GITHUB_SHA BUF_TOKEN WANT_BUF_TOKEN WANT_ARGS
+  unset GITHUB_SHA BUF_TOKEN WANT_BUF_TOKEN WANT_ARGS BUF_VERSION
 }
 
 echo "testing happy path"
@@ -61,6 +63,19 @@ WANT_ARGS="push --tag fake-sha --track non-main some/input/path"
 WANT_STDOUT="::add-mask::fake-token"
 WANT_STDERR=""
 WANT_EXIT_CODE=0
+test_push some/input/path non-main
+echo "ok"
+
+echo "testing non-main track with old buf version"
+BUF_VERSION=1.0.0-rc9
+GITHUB_SHA=fake-sha
+BUF_TOKEN=fake-token
+WANT_BUF_TOKEN=fake-token
+WANT_ARGS="push --tag fake-sha --track non-main some/input/path"
+WANT_STDOUT="::add-mask::fake-token
+::error::The installed version of buf does not support setting the track. Please use buf v1.0.0-rc11 or newer."
+WANT_STDERR=""
+WANT_EXIT_CODE=1
 test_push some/input/path non-main
 echo "ok"
 
@@ -90,3 +105,36 @@ WANT_STDERR=""
 WANT_EXIT_CODE=1
 test_push some/input/path main
 echo "ok"
+
+test_buf_version_supports_track() {
+  version="$1"
+  want="$2"
+  echo "testing buf_version_supports_track ${version}"
+  if [ "${want}" = "true" ]; then
+    buf_version_supports_track "${version}"
+  fi
+  if [ "${want}" = "false" ]; then
+    set +e
+    buf_version_supports_track "${version}"
+    got_exit_code="${?}"
+    set -e
+    if [ "${got_exit_code}" = "0" ]; then
+      echo "Expected buf_version_supports_track to be false got true"
+      exit 1
+    fi
+  fi
+  echo "ok"
+}
+
+test_buf_version_supports_track 1.0.0 true
+test_buf_version_supports_track 2.0.0 true
+test_buf_version_supports_track 0.1.0 false
+test_buf_version_supports_track 1.0.1 true
+test_buf_version_supports_track 1.0.0-rc12 true
+test_buf_version_supports_track 1.0.0-rc11 true
+test_buf_version_supports_track 1.0.0-rc10 false
+test_buf_version_supports_track 1.0.0-rc9 false
+test_buf_version_supports_track 1.0.1-rc10 true
+test_buf_version_supports_track 1.0.0-beta1 false
+test_buf_version_supports_track 1.0.1-beta1 true
+test_buf_version_supports_track 1.0.0-dev false

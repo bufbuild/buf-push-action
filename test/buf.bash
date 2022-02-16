@@ -14,7 +14,8 @@ fail() {
 }
 
 # hardcode the check for --track support
-if [ "$*" = "push --track non-main --help" ]; then
+if [ "$*" = "--version" ]; then
+  echo "${BUF_VERSION:=1.0.0}"
   exit 0
 fi
 

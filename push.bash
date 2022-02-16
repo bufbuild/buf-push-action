@@ -2,6 +2,9 @@
 
 set -eo pipefail
 
+DIR="$(cd "$(dirname "${0}")" && pwd)"
+. "${DIR}/lib.bash"
+
 fail() {
   echo "::error::$1"
   exit 1
@@ -35,7 +38,8 @@ if [ -z "$BUF_COMMAND" ]; then
 fi
 
 if [ "$BUF_TRACK" != "main" ]; then
-  "${BUF_COMMAND}" push --track "${BUF_TRACK}" --help >/dev/null 2>&1 ||
+  buf_version="$("${BUF_COMMAND}" --version)"
+  buf_version_supports_track "$buf_version" ||
     fail "The installed version of buf does not support setting the track. Please use buf v1.0.0-rc11 or newer."
 
   BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" push --tag "${GITHUB_SHA}" --track "${BUF_TRACK}" "${BUF_INPUT}"
