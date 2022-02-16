@@ -19,4 +19,4 @@ runs:
       shell: bash
       env:
         BUF_TOKEN: ${{ inputs.buf_token }}
-      run: ${{ github.action_path }}/push.bash ${{ inputs.input }}
+      run: $GITHUB_ACTION_PATH/push.bash ${{ inputs.input }}
