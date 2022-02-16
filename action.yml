@@ -29,6 +29,7 @@ runs:
       run: yq --help
     - name: push
       shell: bash
+      working-directory: ${{ github.action_path }}
       env:
         BUF_TOKEN: ${{ inputs.buf_token }}
       run: ./push.bash ${{ inputs.input }}
