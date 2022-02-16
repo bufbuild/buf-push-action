@@ -11,6 +11,12 @@ inputs:
   input:
     description: The Input path.
     default: '.'
+    required: false
 runs:
-  using: 'node12'
-  main: './dist/main.js'
+  using: composite
+  steps:
+    - name: push
+      shell: bash
+      env:
+        BUF_TOKEN: ${{ inputs.buf_token }}
+      run: $GITHUB_ACTION_PATH/push.bash ${{ inputs.input }}

@@ -1,0 +1,33 @@
+name: ci
+on:
+  push:
+  workflow_dispatch:
+jobs:
+  test:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - run: make test
+        shell: bash
+  action-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: setup fake buf
+        shell: bash
+        run: |
+          mkdir -p tmp/bin
+          cp test/buf.bash tmp/bin/buf
+          chmod +x tmp/bin/buf
+          echo "${PWD}/tmp/bin" >> "${GITHUB_PATH}"
+      - name: run action
+        uses: ./
+        with:
+          buf_token: fake-buf-token
+          input: path/to/input
+        env:
+          WANT_BUF_TOKEN: fake-buf-token
+          WANT_ARGS: push --tag ${{ github.sha }} path/to/input
