@@ -14,7 +14,7 @@ fail() {
 }
 
 # hardcode the check for --track support
-if [ "$*" = "push --track=non-main --help" ]; then
+if [ "$*" = "push --track non-main --help" ]; then
   exit 0
 fi
 

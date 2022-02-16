@@ -57,7 +57,7 @@ echo "testing non-main track"
 GITHUB_SHA=fake-sha
 BUF_TOKEN=fake-token
 WANT_BUF_TOKEN=fake-token
-WANT_ARGS="push --tag fake-sha --track=non-main some/input/path"
+WANT_ARGS="push --tag fake-sha --track non-main some/input/path"
 WANT_STDOUT="::add-mask::fake-token"
 WANT_STDERR=""
 WANT_EXIT_CODE=0

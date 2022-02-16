@@ -34,12 +34,12 @@ if [ -z "$BUF_COMMAND" ]; then
   fail "$NOT_INSTALLED_MESSAGE"
 fi
 
-TRACK_ARG=""
 if [ "$BUF_TRACK" != "main" ]; then
-  TRACK_ARG="--track=$BUF_TRACK"
-
-  "${BUF_COMMAND}" push "${TRACK_ARG}" --help >/dev/null 2>&1 ||
+  "${BUF_COMMAND}" push --track "${BUF_TRACK}" --help >/dev/null 2>&1 ||
     fail "The installed version of buf does not support setting the track. Please use buf v1.0.0-rc11 or newer."
+
+  BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" push --tag "${GITHUB_SHA}" --track "${BUF_TRACK}" "${BUF_INPUT}"
+  exit 0
 fi
 
-BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" push --tag "${GITHUB_SHA}" "${TRACK_ARG}" "${BUF_INPUT}"
+BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" push --tag "${GITHUB_SHA}" "${BUF_INPUT}"
