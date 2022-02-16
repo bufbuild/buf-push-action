@@ -22,13 +22,7 @@ runs:
       run: |
         echo "${CACHE}/bin" >> "${GITHUB_PATH}"
         echo "CACHE=${CACHE}" >> "${GITHUB_ENV}"
-    - run: make yq_url
-      shell: bash
-    - run: make goos
-      shell: bash
-    - name: install yq
-      shell: bash
-      run: make yq
+        make yq
     - shell: bash
       run: yq --help
     - name: push

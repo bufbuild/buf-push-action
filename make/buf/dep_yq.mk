@@ -16,12 +16,3 @@ $(YQ):
 	@rm -rf $(dir $(YQ))
 	@mkdir -p $(dir $(YQ))
 	@touch $(YQ)
-
-.PHONY: goos
-goos:
-	@echo $(GOOS)
-
-.PHONY: yq_url
-yq_url:
-	@echo $(YQ_URL)
-
