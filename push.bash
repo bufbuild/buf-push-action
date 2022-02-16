@@ -7,12 +7,13 @@ fail() {
   exit 1
 }
 
-if [ $# -ne 1 ]; then
-  echo "Usage: $0 <input>" >&2
+if [ $# -ne 2 ]; then
+  echo "Usage: $0 <input> <track>" >&2
   exit 1
 fi
 
 BUF_INPUT="$1"
+BUF_TRACK="$2"
 
 # Make sure the token isn't accidentally logged
 echo "::add-mask::${BUF_TOKEN}"
@@ -33,4 +34,12 @@ if [ -z "$BUF_COMMAND" ]; then
   fail "$NOT_INSTALLED_MESSAGE"
 fi
 
-BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" push --tag "${GITHUB_SHA}" "${BUF_INPUT}"
+TRACK_ARG=""
+if [ "$BUF_TRACK" != "main" ]; then
+  TRACK_ARG="--track=$BUF_TRACK"
+
+  "${BUF_COMMAND}" push "${TRACK_ARG}" --help >/dev/null 2>&1 ||
+    fail "The installed version of buf does not support setting the track. Please use buf v1.0.0-rc11 or newer."
+fi
+
+BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" push --tag "${GITHUB_SHA}" "${TRACK_ARG}" "${BUF_INPUT}"

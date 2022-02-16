@@ -13,10 +13,16 @@ fail() {
   exit 1
 }
 
+# hardcode the check for --track support
+if [ "$*" = "push --track=non-main --help" ]; then
+  exit 0
+fi
+
 if [ "$BUF_TOKEN" != "$WANT_BUF_TOKEN" ]; then
   fail "buf-push-action got wrong BUF_TOKEN: '$BUF_TOKEN' wanted '$WANT_BUF_TOKEN'"
 fi
 
-if [ "$*" != "$WANT_ARGS" ]; then
+GOT_ARGS="$(echo "$*" | tr -s ' ')"
+if [ "$GOT_ARGS" != "$WANT_ARGS" ]; then
   fail "buf-push-action got wrong args: '$*' wanted '$WANT_ARGS'"
 fi

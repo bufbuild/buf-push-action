@@ -50,14 +50,25 @@ WANT_ARGS="push --tag fake-sha some/input/path"
 WANT_STDOUT="::add-mask::fake-token"
 WANT_STDERR=""
 WANT_EXIT_CODE=0
-test_push some/input/path
+test_push some/input/path main
+echo "ok"
+
+echo "testing non-main track"
+GITHUB_SHA=fake-sha
+BUF_TOKEN=fake-token
+WANT_BUF_TOKEN=fake-token
+WANT_ARGS="push --tag fake-sha --track=non-main some/input/path"
+WANT_STDOUT="::add-mask::fake-token"
+WANT_STDERR=""
+WANT_EXIT_CODE=0
+test_push some/input/path non-main
 echo "ok"
 
 echo "testing no input"
 GITHUB_SHA=fake-sha
 BUF_TOKEN=fake-token
 WANT_STDOUT=""
-WANT_STDERR="Usage: ./push.bash <input>"
+WANT_STDERR="Usage: ./push.bash <input> <track>"
 WANT_EXIT_CODE=1
 test_push
 echo "ok"
@@ -68,7 +79,7 @@ WANT_STDOUT='::add-mask::fake-token
 ::error::the commit was not provided'
 WANT_STDERR=""
 WANT_EXIT_CODE=1
-test_push some/input/
+test_push some/input/ main
 echo "ok"
 
 echo "testing no BUF_TOKEN"
@@ -77,5 +88,5 @@ WANT_STDOUT='::add-mask::
 ::error::a buf authentication token was not provided'
 WANT_STDERR=""
 WANT_EXIT_CODE=1
-test_push some/input/path
+test_push some/input/path main
 echo "ok"
