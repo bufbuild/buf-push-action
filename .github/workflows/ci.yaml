@@ -23,6 +23,10 @@ jobs:
           cp test/buf.bash tmp/bin/buf
           chmod +x tmp/bin/buf
           echo "${PWD}/tmp/bin" >> "${GITHUB_PATH}"
+      - name: check path before
+        shell: bash
+        run: |
+          echo "PATH: ${PATH}"
       - name: run action
         uses: ./
         with:
@@ -31,7 +35,7 @@ jobs:
         env:
           WANT_BUF_TOKEN: fake-buf-token
           WANT_ARGS: push --tag ${{ github.sha }} path/to/input
-      - name: check path
+      - name: check path after
         shell: bash
         run: |
           echo "PATH: ${PATH}"
