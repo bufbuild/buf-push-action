@@ -37,9 +37,6 @@ fi
 if [ "${BUF_TRACK}" != "main" ]; then
   buf_supports_track "${BUF_COMMAND}" ||
     fail "The installed version of buf does not support setting the track. Please use buf v1.0.0-rc11 or newer."
-
-  BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" push --tag "${GITHUB_SHA}" --track "${BUF_TRACK}" "${BUF_INPUT}"
-  exit 0
 fi
 
-BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" push --tag "${GITHUB_SHA}" "${BUF_INPUT}"
+run_buf_push "${BUF_COMMAND}" "${GITHUB_SHA}" "${BUF_TRACK}" "${BUF_INPUT}"

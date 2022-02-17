@@ -16,6 +16,8 @@ chmod +x tmp/test/bin/buf
 # prevent the GITHUB_SHA set by actions from being used in test
 unset GITHUB_SHA
 
+export BSR_COMMIT="feedfacecafefeedfacecafefeedface"
+
 test_push() {
   export GITHUB_SHA BUF_TOKEN WANT_BUF_TOKEN WANT_ARGS OLD_BUF_VERSION
   set +e
@@ -47,7 +49,8 @@ GITHUB_SHA=fake-sha
 BUF_TOKEN=fake-token
 WANT_BUF_TOKEN=fake-token
 WANT_ARGS="push --tag fake-sha some/input/path"
-WANT_STDOUT="::add-mask::fake-token"
+WANT_STDOUT="::add-mask::fake-token
+${BSR_COMMIT}"
 WANT_STDERR=""
 WANT_EXIT_CODE=0
 test_push some/input/path main
@@ -58,7 +61,8 @@ GITHUB_SHA=fake-sha
 BUF_TOKEN=fake-token
 WANT_BUF_TOKEN=fake-token
 WANT_ARGS="push --tag fake-sha --track non-main some/input/path"
-WANT_STDOUT="::add-mask::fake-token"
+WANT_STDOUT="::add-mask::fake-token
+${BSR_COMMIT}"
 WANT_STDERR=""
 WANT_EXIT_CODE=0
 test_push some/input/path non-main

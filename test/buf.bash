@@ -36,3 +36,5 @@ GOT_ARGS="$(echo "$*" | tr -s ' ')"
 if [ "$GOT_ARGS" != "$WANT_ARGS" ]; then
   fail "buf-push-action got wrong args: '$*' wanted '$WANT_ARGS'"
 fi
+
+echo "${BSR_COMMIT}"
