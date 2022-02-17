@@ -13,9 +13,18 @@ fail() {
   exit 1
 }
 
-# hardcode the check for --track support
-if [ "$*" = "--version" ]; then
-  echo "${BUF_VERSION:=1.0.0}"
+USAGE_MESSAGE="Usage:
+  buf push <source> [flags]
+  ...
+"
+
+# hardcode the check for --track support.
+if [ "$*" = "push --track example --help" ]; then
+  if [ -n "${OLD_BUF_VERSION}" ]; then
+    echo "${USAGE_MESSAGE}unknown flag: --track" >&2
+    exit 1
+  fi
+  echo -e "${USAGE_MESSAGE}"
   exit 0
 fi
 

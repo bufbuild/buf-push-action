@@ -3,12 +3,9 @@
 set -eo pipefail
 
 DIR="$(cd "$(dirname "${0}")" && pwd)"
-. "${DIR}/lib.bash"
+# Don't cd to $DIR because BUF_INPUT will be relative to the working directory.
 
-fail() {
-  echo "::error::$1"
-  exit 1
-}
+. "${DIR}/lib.bash"
 
 if [ $# -ne 2 ]; then
   echo "Usage: $0 <input> <track>" >&2
@@ -31,15 +28,14 @@ fi
 
 NOT_INSTALLED_MESSAGE='buf is not installed; please add the "bufbuild/buf-setup-action" step to your job found at https://github.com/bufbuild/buf-setup-action'
 
-BUF_COMMAND="$(type -P buf)" || fail "$NOT_INSTALLED_MESSAGE"
+BUF_COMMAND="$(type -P buf)" || fail "${NOT_INSTALLED_MESSAGE}"
 
-if [ -z "$BUF_COMMAND" ]; then
-  fail "$NOT_INSTALLED_MESSAGE"
+if [ -z "${BUF_COMMAND}" ]; then
+  fail "${NOT_INSTALLED_MESSAGE}"
 fi
 
-if [ "$BUF_TRACK" != "main" ]; then
-  buf_version="$("${BUF_COMMAND}" --version)"
-  buf_version_supports_track "$buf_version" ||
+if [ "${BUF_TRACK}" != "main" ]; then
+  buf_supports_track "${BUF_COMMAND}" ||
     fail "The installed version of buf does not support setting the track. Please use buf v1.0.0-rc11 or newer."
 
   BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" push --tag "${GITHUB_SHA}" --track "${BUF_TRACK}" "${BUF_INPUT}"
