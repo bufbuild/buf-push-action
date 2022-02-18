@@ -2,10 +2,14 @@
 
 set -eo pipefail
 
-DIR="$(cd "$(dirname "${0}")" && pwd)"
-# Don't cd to $DIR because BUF_INPUT will be relative to the working directory.
+fail() {
+  echo "::error::$1"
+  exit 1
+}
 
-. "${DIR}/lib.bash"
+output_notice() {
+  echo "::notice::$1"
+}
 
 if [ $# -ne 2 ]; then
   echo "Usage: $0 <input> <track>" >&2
@@ -34,9 +38,31 @@ if [ -z "${BUF_COMMAND}" ]; then
   fail "${NOT_INSTALLED_MESSAGE}"
 fi
 
+BUF_ARGS=("push" "--tag" "${GITHUB_SHA}" "${BUF_INPUT}")
 if [ "${BUF_TRACK}" != "main" ]; then
-  buf_supports_track "${BUF_COMMAND}" ||
+  BUF_ARGS+=("--track" "${BUF_TRACK}")
+
+  # Check that --track is supported by running "buf push --track example --help"
+  # and checking for "unknown flag: --track" in the output.
+  set +e
+  BUF_HELP_OUTPUT="$("${BUF_COMMAND}" push --track example --help 2>&1)"
+  set -e
+  if [[ "${BUF_HELP_OUTPUT}" == *"unknown flag: --track"* ]]; then
     fail "The installed version of buf does not support setting the track. Please use buf v1.0.0-rc11 or newer."
+  fi
 fi
 
-run_buf_push "${BUF_COMMAND}" "${GITHUB_SHA}" "${BUF_TRACK}" "${BUF_INPUT}"
+BUF_OUT_DIR="$(mktemp -d)"
+STDOUT_FILE="${BUF_OUT_DIR}/stdout.txt"
+STDERR_FILE="${BUF_OUT_DIR}/stderr.txt"
+touch "${STDOUT_FILE}" "${STDERR_FILE}"
+
+"${BUF_COMMAND}" "${BUF_ARGS[@]}" >"${STDOUT_FILE}" 2>"${STDERR_FILE}" || fail "$(cat "${STDERR_FILE}")"
+STDOUT="$(cat "${STDOUT_FILE}")"
+STDERR="$(cat "${STDERR_FILE}")"
+rm -rf "${BUF_OUT_DIR}"
+[ -z "${STDOUT}" ] || output_notice "pushed commit ${STDOUT}"
+# If we have stderr after getting exit code 0, then the message is
+# "The latest commit has the same content; not creating a new commit."
+# We want to output that as a notice.
+[ -z "${STDERR}" ] || output_notice "${STDERR}"

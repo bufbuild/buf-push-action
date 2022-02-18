@@ -50,7 +50,7 @@ BUF_TOKEN=fake-token
 WANT_BUF_TOKEN=fake-token
 WANT_ARGS="push --tag fake-sha some/input/path"
 WANT_STDOUT="::add-mask::fake-token
-${TEST_BSR_COMMIT}"
+::notice::pushed commit ${TEST_BSR_COMMIT}"
 WANT_STDERR=""
 WANT_EXIT_CODE=0
 test_push some/input/path main
@@ -60,9 +60,9 @@ echo "testing non-main track"
 GITHUB_SHA=fake-sha
 BUF_TOKEN=fake-token
 WANT_BUF_TOKEN=fake-token
-WANT_ARGS="push --tag fake-sha --track non-main some/input/path"
+WANT_ARGS="push --tag fake-sha some/input/path --track non-main"
 WANT_STDOUT="::add-mask::fake-token
-${TEST_BSR_COMMIT}"
+::notice::pushed commit ${TEST_BSR_COMMIT}"
 WANT_STDERR=""
 WANT_EXIT_CODE=0
 test_push some/input/path non-main
@@ -73,7 +73,6 @@ OLD_BUF_VERSION=1
 GITHUB_SHA=fake-sha
 BUF_TOKEN=fake-token
 WANT_BUF_TOKEN=fake-token
-WANT_ARGS="push --tag fake-sha --track non-main some/input/path"
 WANT_STDOUT="::add-mask::fake-token
 ::error::The installed version of buf does not support setting the track. Please use buf v1.0.0-rc11 or newer."
 WANT_STDERR=""
