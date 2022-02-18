@@ -15,7 +15,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     env:
-      BSR_COMMIT: feedfacecafefeedfacecafefeedface
+      TEST_BSR_COMMIT: feedfacecafefeedfacecafefeedface
     steps:
       - uses: actions/checkout@v2
       - name: setup fake buf

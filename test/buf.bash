@@ -5,7 +5,7 @@ set -euo pipefail
 
 fail() {
   set +u
-  if [ -n "$CI" ]; then
+  if [ -n "${CI}" ]; then
     echo "::error::$1"
   else
     echo "FAIL: $1" >&2
@@ -37,4 +37,4 @@ if [ "$GOT_ARGS" != "$WANT_ARGS" ]; then
   fail "buf-push-action got wrong args: '$*' wanted '$WANT_ARGS'"
 fi
 
-echo "${BSR_COMMIT}"
+echo "${TEST_BSR_COMMIT}"
