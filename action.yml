@@ -16,11 +16,24 @@ inputs:
     description: The track to push to.
     default: main
     required: false
+outputs:
+  commit:
+    description: The commit pushed to the Buf Schema Registry.
+    value: ${{ steps.push.outputs.commit }}
+  commit_url:
+    description: The URL to view commit on the Buf Schema Registry.
+    value: ${{ steps.push.outputs.commit_url }}
 runs:
   using: composite
   steps:
     - name: push
+      id: push
       shell: bash
       env:
         BUF_TOKEN: ${{ inputs.buf_token }}
-      run: $GITHUB_ACTION_PATH/push.bash "${{ inputs.input }}" "${{ inputs.track }}"
+        CACHE: ${{ runner.temp }}/${{ github.action }}
+        BUF_BETA_SUPPRESS_WARNINGS: "1"
+      run: |
+        make --directory="${GITHUB_ACTION_PATH}" yq
+        PATH="${CACHE}/bin:${PATH}"
+        "${GITHUB_ACTION_PATH}/push.bash" "${{ inputs.input }}" "${{ inputs.track }}"

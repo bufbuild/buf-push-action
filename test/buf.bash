@@ -13,6 +13,8 @@ fail() {
   exit 1
 }
 
+: "${OLD_BUF_VERSION:=}"
+
 USAGE_MESSAGE="Usage:
   buf push <source> [flags]
   ...
@@ -28,13 +30,27 @@ if [ "$*" = "push --track example --help" ]; then
   exit 0
 fi
 
-if [ "$BUF_TOKEN" != "$WANT_BUF_TOKEN" ]; then
-  fail "buf-push-action got wrong BUF_TOKEN: '$BUF_TOKEN' wanted '$WANT_BUF_TOKEN'"
+if [ "${BUF_TOKEN}" != "${WANT_BUF_TOKEN}" ]; then
+  fail "buf-push-action got wrong BUF_TOKEN: '${BUF_TOKEN}' wanted '${WANT_BUF_TOKEN}'"
 fi
 
-GOT_ARGS="$(echo "$*" | tr -s ' ')"
-if [ "$GOT_ARGS" != "$WANT_ARGS" ]; then
-  fail "buf-push-action got wrong args: '$*' wanted '$WANT_ARGS'"
+case "$*" in
+  "${WANT_ARGS}")
+    ;;
+  "beta registry commit get buf.build/example/repo --format=json")
+    printf '{"commit":"%s"}\n' "${TEST_BSR_COMMIT}"
+    exit 0
+    ;;
+  *)
+    fail "buf-push-action got wrong args: '$*' wanted '${WANT_ARGS}'"
+    ;;
+esac
+
+: "${NO_DIGEST_CHANGE:=""}"
+
+if [ -n "${NO_DIGEST_CHANGE}" ]; then
+  echo "The latest commit has the same content, not creating a new commit." >&2
+  exit 0
 fi
 
 echo "${TEST_BSR_COMMIT}"

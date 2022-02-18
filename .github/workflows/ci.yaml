@@ -26,10 +26,27 @@ jobs:
           chmod +x tmp/bin/buf
           echo "${PWD}/tmp/bin" >> "${GITHUB_PATH}"
       - name: run action
+        id: run-action
         uses: ./
         with:
           buf_token: fake-buf-token
-          input: path/to/input
+          input: test/proto
+          track: fake-track
         env:
           WANT_BUF_TOKEN: fake-buf-token
-          WANT_ARGS: push --tag ${{ github.sha }} path/to/input
+          WANT_ARGS: push --tag ${{ github.sha }} test/proto --track fake-track
+      - name: check output
+        env:
+          GOT_COMMIT: ${{ steps.run-action.outputs.commit }}
+          GOT_COMMIT_URL: ${{ steps.run-action.outputs.commit_url }}
+        shell: bash
+        run: |
+          set -e
+          if [[ "${GOT_COMMIT}" != "${TEST_BSR_COMMIT}" ]]; then
+            echo "Expected commit ${TEST_BSR_COMMIT} but got ${GOT_COMMIT}"
+            exit 1
+          fi
+          if [[ "${GOT_COMMIT_URL}" != "https://buf.build/example/repo/tree/${TEST_BSR_COMMIT}" ]]; then
+            echo "Expected commit url ${TEST_BSR_COMMIT_URL} but got ${GOT_COMMIT_URL}"
+            exit 1
+          fi

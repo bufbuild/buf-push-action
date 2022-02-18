@@ -1,3 +1,1 @@
-.PHONY: test
-test:
-	./test/test.bash
+include make/buf/all.mk

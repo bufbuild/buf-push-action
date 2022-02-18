@@ -2,13 +2,24 @@
 
 set -eo pipefail
 
+# writes github action workflow message
+# valid types are: "notice", "warning" and "error"
+# only the first line is displayed in the github action workflow
+workflow_message() {
+  local message_type="$1"
+  local message="$2"
+  echo "::$message_type::$message"
+}
+
+# error then exit 1
 fail() {
-  echo "::error::$1"
+  workflow_message error "$1"
   exit 1
 }
 
-output_notice() {
-  echo "::notice::$1"
+# sets an output value for the github action step
+set_output() {
+  echo "::set-output name=$1::$2"
 }
 
 if [ $# -ne 2 ]; then
@@ -25,6 +36,15 @@ echo "::add-mask::${BUF_TOKEN}"
 if [ -z "${GITHUB_SHA}" ]; then
   fail "the commit was not provided"
 fi
+
+CONFIG_FILE="${BUF_INPUT}/buf.yaml"
+
+if [ ! -f "${CONFIG_FILE}" ]; then
+  fail "Config file not found: ${CONFIG_FILE}"
+fi
+
+MODULE_NAME="$(yq eval --exit-status '.name' "${CONFIG_FILE}" 2>/dev/null)" ||
+  fail "name not found in ${CONFIG_FILE}"
 
 if [ -z "${BUF_TOKEN}" ]; then
   fail "a buf authentication token was not provided"
@@ -58,11 +78,25 @@ STDERR_FILE="${BUF_OUT_DIR}/stderr.txt"
 touch "${STDOUT_FILE}" "${STDERR_FILE}"
 
 "${BUF_COMMAND}" "${BUF_ARGS[@]}" >"${STDOUT_FILE}" 2>"${STDERR_FILE}" || fail "$(cat "${STDERR_FILE}")"
-STDOUT="$(cat "${STDOUT_FILE}")"
+# The only stdout from buf push is the name of the pushed commit.
+BUF_COMMIT="$(cat "${STDOUT_FILE}")"
 STDERR="$(cat "${STDERR_FILE}")"
 rm -rf "${BUF_OUT_DIR}"
-[ -z "${STDOUT}" ] || output_notice "pushed commit ${STDOUT}"
+[ -z "${BUF_COMMIT}" ] || workflow_message notice "pushed commit ${BUF_COMMIT}"
+
 # If we have stderr after getting exit code 0, then the message is
 # "The latest commit has the same content; not creating a new commit."
 # We want to output that as a notice.
-[ -z "${STDERR}" ] || output_notice "${STDERR}"
+[ -z "${STDERR}" ] || workflow_message notice "${STDERR}"
+
+# When push is successful but no commit is returned, that means there was no digest change. We need to get the
+# commit from from "buf beta registry commit get"
+if [ -z "${BUF_COMMIT}" ]; then
+  BUF_COMMIT="$(
+    BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" beta registry commit get "${MODULE_NAME}" --format=json |
+      jq -r '.commit'
+  )"
+fi
+
+set_output commit "${BUF_COMMIT}"
+set_output commit_url "https://${MODULE_NAME}/tree/${BUF_COMMIT}"
