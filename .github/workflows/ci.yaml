@@ -18,12 +18,32 @@ jobs:
       TEST_BSR_COMMIT: feedfacecafefeedfacecafefeedface
     steps:
       - uses: actions/checkout@v2
-      - name: setup fake buf
+      - name: setup test
         shell: bash
         run: |
-          mkdir -p tmp/bin
+          mkdir -p tmp/bin tmp/test
           cp test/buf.bash tmp/bin/buf
           chmod +x tmp/bin/buf
+          echo '[
+            {
+              "args": "push --track example --help",
+              "exit_code": "0",
+              "stdout": "Usage:\n  buf push <source> [flags]\n  ...\n",
+              "stderr": ""
+            },
+            {
+              "args": "push --tag ${{ github.sha }} test/proto --track fake-track",
+              "exit_code": "0",
+              "stdout": "feedfacecafefeedfacecafefeedface",
+              "stderr": ""
+            }
+          ]' > tmp/test/buf.expectations
+          echo "BUF_EXPECTATIONS_FILE=${PWD}/tmp/test/buf.expectations" >> "${GITHUB_ENV}"
+          echo "BUF_FAILURE_LOG_FILE=${PWD}/tmp/test/buf.failure.log" >> "${GITHUB_ENV}"
+          echo '[]' > tmp/test/gh.expectations
+          echo "GH_EXPECTATIONS_FILE=${PWD}/tmp/test/gh.expectations" >> "${GITHUB_ENV}"
+          echo "GH_FAILURE_LOG_FILE=${PWD}/tmp/test/gh.failure.log" >> "${GITHUB_ENV}"
+          echo "REPO_ROOT=${PWD}" >> "${GITHUB_ENV}"
           echo "${PWD}/tmp/bin" >> "${GITHUB_PATH}"
       - name: run action
         id: run-action
@@ -32,9 +52,6 @@ jobs:
           buf_token: fake-buf-token
           input: test/proto
           track: fake-track
-        env:
-          WANT_BUF_TOKEN: fake-buf-token
-          WANT_ARGS: push --tag ${{ github.sha }} test/proto --track fake-track
       - name: check output
         env:
           GOT_COMMIT: ${{ steps.run-action.outputs.commit }}

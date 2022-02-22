@@ -2,6 +2,13 @@
 
 set -eo pipefail
 
+DIR="$(cd "$(dirname "${0}")" && pwd)"
+
+# lib to source. This is here for dependency injection.
+: "${LIB:="${DIR}/lib.bash"}"
+# shellcheck source=lib.bash
+. "${LIB}"
+
 # writes github action workflow message
 # valid types are: "notice", "warning" and "error"
 # only the first line is displayed in the github action workflow
