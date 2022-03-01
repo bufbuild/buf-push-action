@@ -35,19 +35,21 @@ const (
 	CompareCommitsStatusBehind
 )
 
-var compareCommitStatusStrings = map[CompareCommitsStatus]string{
-	CompareCommitsStatusDiverged:  "diverged",
-	CompareCommitsStatusIdentical: "identical",
-	CompareCommitsStatusAhead:     "ahead",
-	CompareCommitsStatusBehind:    "behind",
-}
+var (
+	compareCommitStatusStrings = map[CompareCommitsStatus]string{
+		CompareCommitsStatusDiverged:  "diverged",
+		CompareCommitsStatusIdentical: "identical",
+		CompareCommitsStatusAhead:     "ahead",
+		CompareCommitsStatusBehind:    "behind",
+	}
 
-var stringsToCompareCommitStatus = map[string]CompareCommitsStatus{
-	"diverged":  CompareCommitsStatusDiverged,
-	"identical": CompareCommitsStatusIdentical,
-	"ahead":     CompareCommitsStatusAhead,
-	"behind":    CompareCommitsStatusBehind,
-}
+	stringsToCompareCommitStatus = map[string]CompareCommitsStatus{
+		"diverged":  CompareCommitsStatusDiverged,
+		"identical": CompareCommitsStatusIdentical,
+		"ahead":     CompareCommitsStatusAhead,
+		"behind":    CompareCommitsStatusBehind,
+	}
+)
 
 func (s CompareCommitsStatus) String() string {
 	got, ok := compareCommitStatusStrings[s]
