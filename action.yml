@@ -16,6 +16,10 @@ inputs:
     description: The track to push to.
     default: main
     required: false
+  github_token:
+    description: The Github authentication token.
+    required: false
+    default: ${{ github.token }}
 outputs:
   commit:
     description: The commit pushed to the Buf Schema Registry.
@@ -40,13 +44,13 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       env:
-        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
       run: ./downloadbinary.bash "${{ github.action_ref }}" "${{ steps.cache-setup.outputs.path }}"
     - name: push
       id: push
       shell: bash
       env:
         BUF_TOKEN: ${{ inputs.buf_token }}
-        GITHUB_TOKEN: ${{ github.token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
         "${{ steps.cache-setup.outputs.path }}/buf-push-action" "${{ inputs.input }}" "${{ inputs.track }}" "${{ github.sha }}"
