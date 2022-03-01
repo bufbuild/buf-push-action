@@ -26,3 +26,7 @@ bufgeneratesteps:: bufgeneratego
 .PHONY: release
 release: $(MINISIGN)
 	DOCKER_IMAGE=golang:1.17.7-buster bash make/buf-push-action/scripts/release.bash
+
+.PHONY: directoryhash
+directoryhash:
+	@ bash make/buf-push-action/scripts/directoryhash.bash .

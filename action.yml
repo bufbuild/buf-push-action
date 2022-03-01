@@ -34,7 +34,7 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
-        DIRHASH="$(./directoryhash.bash .)"
+        DIRHASH="$(make directoryhash)"
         echo "::set-output name=key::${RUNNER_OS}-buf-push-action-${DIRHASH}"
         echo "::set-output name=path::${RUNNER_TEMP}/buf-push-action/bin"
     - uses: actions/cache@v2
