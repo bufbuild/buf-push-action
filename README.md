@@ -39,14 +39,14 @@ We recommend using [`buf-setup-action`][buf-setup] to install it (as in the exam
 
 ## Configuration
 
-| Parameter      | Description                                                                | Required | Default                             |
-|:---------------|:---------------------------------------------------------------------------|:---------|:------------------------------------|
-| `buf_token`    | The [Buf authentication token][buf-token] used for private [Inputs][input] | ✅        |                                     |
-| `input`        | The path of the [Input] you want to push to BSR as a module                |          | `.`                                 |
-| `track`        | The track to push to                                                       |          | `main`                              |
-| `github_token` | The GitHub token to use when making API requests                           |          | [`${{github.token}}`][github-token] |
+| Parameter      | Description                                                                    | Required | Default                             |
+|:---------------|:-------------------------------------------------------------------------------|:---------|:------------------------------------|
+| `buf_token`    | The [Buf authentication token][buf-token] used for private [Buf inputs][input] | ✅        | [`${{github.token}}`][github-token] |
+| `input`        | The path of the [input] you want to push to BSR as a module                    |          | `.`                                 |
+| `track`        | The track to push to                                                           |          | `main`                              |
+| `github_token` | The GitHub token to use when making API requests                               |          | [`${{github.token}}`][github-token] |
 
-> These parameters are derived from [`action.yml`][./action.yml].
+> These parameters are derived from [`action.yml`](./action.yml).
 
 ## Outputs
 | Name         | Description                                     |
@@ -56,7 +56,7 @@ We recommend using [`buf-setup-action`][buf-setup] to install it (as in the exam
 
 ## Common tasks
 
-### Run against Input in sub-directory
+### Run against input in sub-directory
 
 Some repositories are structured so that their [`buf.yaml`][buf-yaml] configuration file is defined
 in a sub-directory alongside their Protobuf sources, such as a `proto` directory. Here's an example:
