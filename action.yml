@@ -32,13 +32,6 @@ runs:
       run: |
         echo "::set-output name=key::${RUNNER_OS}-buf-push-action-${GITHUB_ACTION_REF:-$(git rev-parse --short HEAD)}"
         echo "::set-output name=path::${RUNNER_TEMP}/buf-push-action/bin"
-    - id: notice
-      shell: bash
-      working-directory: ${{ github.action_path }}
-      run: |
-        echo "::notice:: cache-key ${{ steps.cache-setup.outputs.key }}"
-        echo "::notice:: cache-path ${{ steps.cache-setup.outputs.path }}"
-        echo "::notice:: action_path ${{ github.action_path }}"
     - uses: actions/cache@v2
       with:
         path: ${{ steps.cache-setup.outputs.path }}
