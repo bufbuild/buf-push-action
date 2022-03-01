@@ -23,6 +23,7 @@ import (
 	"github.com/google/go-github/v42/github"
 )
 
+// CompareCommitsStatus is the result of comparing two commits.
 type CompareCommitsStatus int
 
 // The possible values for returned from githubClient.CompareCommits.
@@ -56,6 +57,7 @@ func (s CompareCommitsStatus) String() string {
 	return got
 }
 
+// Client is a client for interacting with the GitHub API.
 type Client interface {
 	// CompareCommits compares two commits and returns the status of head relative to base.
 	CompareCommits(ctx context.Context, base, head string) (CompareCommitsStatus, error)
