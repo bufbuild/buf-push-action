@@ -4,37 +4,59 @@ on:
 # Prevent writing to the repository using the CI token.
 # Ref: https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#permissions
 permissions: read-all
+env:
+  MAKEFLAGS: '-j 2'
 jobs:
-  build:
+  lint:
     runs-on: ubuntu-20.04
     steps:
+      - name: checkout
+        uses: actions/checkout@v2
       - name: setup-go
         if: success()
         uses: actions/setup-go@v2
         with:
           go-version: 1.17.7
-      - name: checkout
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-      - name: cache setup
-        id: go-cache-paths
-        run: |
-          DIRENVFILE="$(make direnv)"
-          GOCACHE="$(cat "$DIRENVFILE" | grep GOCACHE | cut -d '=' -f2 | xargs)"
-          GOMODCACHE="$(cat "$DIRENVFILE" | grep GOMODCACHE | cut -d '=' -f2 | xargs)"
-          echo "::set-output name=go-build::${GOCACHE}"
-          echo "::set-output name=go-mod::${GOMODCACHE}"
-      - name: go cache
+      - name: cache
+        if: success()
         uses: actions/cache@v2
         with:
           path: |
-            ${{ steps.go-cache-paths.outputs.go-build }}
-            ${{ steps.go-cache-paths.outputs.go-mod }}
-          key: ${{ runner.os }}-go-cache-4-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-go-cache-4-
-      - name: ci
-        run: make ci
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/bin
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/go/pkg/mod
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/include
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/versions
+          key: ${{ runner.os }}-buf-push-action-lint-${{ hashFiles('**/go.sum', 'make/**') }}
+          restore-keys: |
+            ${{ runner.os }}-buf-push-action-lint-
+      - name: make-lint
+        if: success()
+        run: make lint
+  test:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: setup-go
+        if: success()
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17.7
+      - name: cache
+        if: success()
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/bin
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/go/pkg/mod
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/include
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/versions
+          key: ${{ runner.os }}-buf-push-action-test-${{ hashFiles('**/go.sum', 'make/**') }}
+          restore-keys: |
+            ${{ runner.os }}-buf-push-action-test-
+      - name: make-test
+        if: success()
+        run: make test
   action-test:
     runs-on: ubuntu-20.04
     env:
