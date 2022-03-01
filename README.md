@@ -11,7 +11,7 @@ Pushed modules are created with the Git commit SHA as the module tag.
 Here's an example usage of `buf-push-action`:
 
 ```yaml
-on: pull_request # Apply to all pull requests
+on: push
 jobs:
   push-module:
     # Run `git checkout`
@@ -22,6 +22,7 @@ jobs:
     - uses: bufbuild/buf-push-action@v1
       with:
         buf_token: ${{ secrets.BUF_TOKEN }}
+        track: ${{ github.ref_name }}
 ```
 
 With this configuration, the `buf` CLI pushes the [configured module][buf-yaml] to the BSR upon
@@ -38,12 +39,20 @@ We recommend using [`buf-setup-action`][buf-setup] to install it (as in the exam
 
 ## Configuration
 
-Parameter | Description | Required | Default
-:---------|:------------|:---------|:-------
-`buf_token` | The [Buf authentication token][buf-token] used for private [Inputs][input] | ✅  | [`${{github.token}}`][github-token]
-`input` | The path of the [Input] you want to push to BSR as a module | | `.`
+| Parameter      | Description                                                                | Required | Default                             |
+|:---------------|:---------------------------------------------------------------------------|:---------|:------------------------------------|
+| `buf_token`    | The [Buf authentication token][buf-token] used for private [Inputs][input] | ✅        |                                     |
+| `input`        | The path of the [Input] you want to push to BSR as a module                |          | `.`                                 |
+| `track`        | The track to push to                                                       |          | `main`                              |
+| `github_token` | The GitHub token to use when making API requests                           |          | [`${{github.token}}`][github-token] |
 
 > These parameters are derived from [`action.yml`][./action.yml].
+
+## Outputs
+| Name         | Description                                     |
+|--------------|-------------------------------------------------|
+| `commit`     | The name of the commit that was pushed to BSR   |
+| `commit_url` | A URL linking to the newly pushed commit on BSR |
 
 ## Common tasks
 
