@@ -14,15 +14,30 @@ Here's an example usage of `buf-push-action`:
 on: push
 jobs:
   push-module:
-    # Run `git checkout`
-    - uses: actions/checkout@v2
-    # Install the `buf` CLI
-    - uses: bufbuild/buf-setup-action@v0.6.0
-    # Push module to the BSR
-    - uses: bufbuild/buf-push-action@v1
-      with:
-        buf_token: ${{ secrets.BUF_TOKEN }}
-        track: ${{ github.ref_name }}
+    runs-on: ubuntu-latest
+    # only allow one concurrent push job per git branch to prevent race conditions
+    concurrency: ${{ github.workflow }}-${{ github.ref_name }}
+    steps:
+      # Run `git checkout`
+      - uses: actions/checkout@v2
+      # Install the `buf` CLI
+      - uses: bufbuild/buf-setup-action@v0.6.0
+      # Push module to the BSR
+      - uses: bufbuild/buf-push-action@v1
+        id: push
+        with:
+          buf_token: ${{ secrets.BUF_TOKEN }}
+          track: ${{ github.ref_name }}
+      # Add a commit status with a link to the newly pushed module on BSR
+      - name: post commit status to github
+        env:
+          GIHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/{owner}/{repo}/statuses/${GITHUB_SHA} \
+            -F "state=success" \
+            -F "target_url=${{ steps.push.outputs.commit_url }}" \
+            -F "description=pushed commit ${{ steps.push.outputs.commit }}" \
+            -F "context=buf-push"
 ```
 
 With this configuration, the `buf` CLI pushes the [configured module][buf-yaml] to the BSR upon
