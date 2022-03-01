@@ -30,3 +30,14 @@ release: $(MINISIGN)
 .PHONY: directoryhash
 directoryhash:
 	@ bash make/buf-push-action/scripts/directoryhash.bash .
+
+# Settable
+# This is the release that downloadbinary will download buf-push-action from if it exists.
+DOWNLOADBINARY_RELEASE := ""
+# Settable
+# This is the directory where downloadbinary will place buf-push-action.
+DOWNLOADBINARY_OUTPUT_DIR := ""
+
+.PHONY: downloadbinary
+downloadbinary:
+	bash make/buf-push-action/scripts/downloadbinary.bash "$(DOWNLOADBINARY_RELEASE)" "$(DOWNLOADBINARY_OUTPUT_DIR)"

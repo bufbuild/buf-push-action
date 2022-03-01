@@ -34,19 +34,20 @@ runs:
       shell: bash
       working-directory: ${{ github.action_path }}
       run: |
-        DIRHASH="$(make directoryhash)"
-        echo "::set-output name=key::${RUNNER_OS}-buf-push-action-${DIRHASH}"
+        echo "::set-output name=key::${RUNNER_OS}-buf-push-action-$(make directoryhash)"
         echo "::set-output name=path::${RUNNER_TEMP}/buf-push-action/bin"
     - uses: actions/cache@v2
       with:
         path: ${{ steps.cache-setup.outputs.path }}
         key: ${{ steps.cache-setup.outputs.key }}
-    - name: build
+    - name: make downloadbinary
       shell: bash
       working-directory: ${{ github.action_path }}
       env:
         GITHUB_TOKEN: ${{ inputs.github_token }}
-      run: ./downloadbinary.bash "${{ github.action_ref }}" "${{ steps.cache-setup.outputs.path }}"
+        DOWNLOADBINARY_RELEASE: ${{ github.action_ref }}
+        DOWNLOADBINARY_OUTPUT_DIR: ${{ steps.cache-setup.outputs.path }}
+      run: make downloadbinary
     - name: push
       id: push
       shell: bash
