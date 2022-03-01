@@ -1,0 +1,60 @@
+run:
+  skip-dirs-use-default: false
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+  forbidigo:
+    forbid:
+      - 'fmt\.Print.*'
+linters:
+  enable:
+    - govet
+    - asciicheck
+    - bodyclose
+    - deadcode
+    - depguard
+    - dogsled
+    - errcheck
+    - exportloopref
+    - forbidigo
+    - forcetypeassert
+    - gochecknoinits
+    - gofmt
+    - goheader
+    - goimports
+    - gomodguard
+    - goprintffuncname
+    - gosimple
+    - gosec
+    - govet
+    - importas
+    - ineffassign
+    - makezero
+    - misspell
+    - nakedret
+    - nilerr
+    - nolintlint
+    - predeclared
+    - promlinter
+    - rowserrcheck
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unused
+    - varcheck
+    - wastedassign
+    - whitespace
+  disable-all: true
+issues:
+  exclude-rules:
+    - linters:
+        - stylecheck
+      text: "ST1005:"
+    - linters:
+        - gosec
+      # G101 checks for hardcoded credentials, and the variables named "*Token*
+      # trip this off.
+      path: internal/bufpushaction/bufpushaction.go
+      text: "G101:"

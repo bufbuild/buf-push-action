@@ -3,54 +3,47 @@
 
 set -euo pipefail
 
-fail() {
+DIR="$(cd "$(dirname "${0}")/.." && pwd)"
+cd "${DIR}"
+
+fail () {
+  echo -e "$1" > "${FAILURE_LOG_FILE}"
   set +u
   if [ -n "${CI}" ]; then
     echo "::error::$1"
   else
     echo "FAIL: $1" >&2
   fi
+  set -u
   exit 1
 }
 
-: "${OLD_BUF_VERSION:=}"
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+EXPECTATIONS_FILE="${REPO_ROOT}/.tmp/test/buf.expectations"
+FAILURE_LOG_FILE="${REPO_ROOT}/.tmp/test/buf.failure.log"
+COMMAND="$0"
 
-USAGE_MESSAGE="Usage:
-  buf push <source> [flags]
-  ...
-"
+EXPECTATIONS="$(cat "${EXPECTATIONS_FILE}")"
+EXPECTATION="$(echo "${EXPECTATIONS}" | jq -r '.[0]')"
+echo "${EXPECTATIONS}" | jq 'del(.[0])' > "${EXPECTATIONS_FILE}"
+[ "${EXPECTATION}" != "null" ] || fail "unexpected call to ${COMMAND}:\n got: $*\n expected no call"
+EXPECTED_ARGS="$(echo "${EXPECTATION}" | jq -r '.args')"
+[ "$*" = "${EXPECTED_ARGS}" ] || fail "unexpected call to ${COMMAND}:\n got: $*\n expected: ${EXPECTED_ARGS}"
 
-# hardcode the check for --track support.
-if [ "$*" = "push --track example --help" ]; then
-  if [ -n "${OLD_BUF_VERSION}" ]; then
-    echo "${USAGE_MESSAGE}unknown flag: --track" >&2
-    exit 1
-  fi
-  echo -e "${USAGE_MESSAGE}"
-  exit 0
+EXPECTED_ENV="$(echo "${EXPECTATION}" | jq -r '.env_vars')"
+if [ "${EXPECTED_ENV}" != "null" ]; then
+  for env_pair in $(echo "$EXPECTED_ENV" | jq -r '.[]'); do
+    ENV_KEY="$(echo "${env_pair}" | cut -d '=' -f 1)"
+    ENV_VALUE="$(echo "${env_pair}" | cut -d '=' -f 2)"
+    if ! [ -v "$ENV_KEY" ]; then
+      fail "Missing environment variable: $ENV_KEY"
+    fi
+    if [ "$ENV_VALUE" != "${!ENV_KEY}" ]; then
+      fail "Environment variable mismatch: $ENV_KEY, expected: $ENV_VALUE, got: ${!ENV_KEY}"
+    fi
+  done
 fi
 
-if [ "${BUF_TOKEN}" != "${WANT_BUF_TOKEN}" ]; then
-  fail "buf-push-action got wrong BUF_TOKEN: '${BUF_TOKEN}' wanted '${WANT_BUF_TOKEN}'"
-fi
-
-case "$*" in
-  "${WANT_ARGS}")
-    ;;
-  "beta registry commit get buf.build/example/repo --format=json")
-    printf '{"commit":"%s"}\n' "${TEST_BSR_COMMIT}"
-    exit 0
-    ;;
-  *)
-    fail "buf-push-action got wrong args: '$*' wanted '${WANT_ARGS}'"
-    ;;
-esac
-
-: "${NO_DIGEST_CHANGE:=""}"
-
-if [ -n "${NO_DIGEST_CHANGE}" ]; then
-  echo "The latest commit has the same content, not creating a new commit." >&2
-  exit 0
-fi
-
-echo "${TEST_BSR_COMMIT}"
+echo "${EXPECTATION}" | jq -r '.stderr' >&2
+echo "${EXPECTATION}" | jq -r '.stdout'
+exit "$(echo "${EXPECTATION}" | jq -r '.exit_code')"

@@ -3,28 +3,69 @@ on:
   push:
   workflow_dispatch:
 jobs:
-  test:
+  build:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
-      - run: make test
-        shell: bash
+      - name: setup-go
+        if: success()
+        uses: actions/setup-go@v2
+        with:
+          go-version: 1.17.7
+      - name: checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+      - name: cache setup
+        id: go-cache-paths
+        run: |
+          DIRENVFILE="$(make direnv)"
+          GOCACHE="$(cat "$DIRENVFILE" | grep GOCACHE | cut -d '=' -f2 | xargs)"
+          GOMODCACHE="$(cat "$DIRENVFILE" | grep GOMODCACHE | cut -d '=' -f2 | xargs)"
+          echo "::set-output name=go-build::${GOCACHE}"
+          echo "::set-output name=go-mod::${GOMODCACHE}"
+      - name: go cache
+        uses: actions/cache@v2
+        with:
+          path: |
+            ${{ steps.go-cache-paths.outputs.go-build }}
+            ${{ steps.go-cache-paths.outputs.go-mod }}
+          key: ${{ runner.os }}-go-cache-4-${{ hashFiles('**/go.sum') }}
+          restore-keys: ${{ runner.os }}-go-cache-4-
+      - name: ci
+        run: make ci
   action-test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-20.04
     env:
       TEST_BSR_COMMIT: feedfacecafefeedfacecafefeedface
     steps:
       - uses: actions/checkout@v2
-      - name: setup fake buf
+      - name: setup test
         shell: bash
         run: |
-          mkdir -p tmp/bin
-          cp test/buf.bash tmp/bin/buf
-          chmod +x tmp/bin/buf
-          echo "${PWD}/tmp/bin" >> "${GITHUB_PATH}"
+          mkdir -p .tmp/bin .tmp/test
+          cp test/buf.bash .tmp/bin/buf
+          chmod +x .tmp/bin/buf
+          echo '[
+                {
+                  "args": "push --track fake-track --help",
+                  "exit_code": "0",
+                  "stdout": "Usage:\n  buf push <source> [flags]\n  ...\n",
+                  "stderr": ""
+                },
+                {
+                  "args": "beta registry commit get buf.build/example/repo:fake-track --format json",
+                  "exit_code": "1",
+                  "stdout": "",
+                  "stderr": "track does not exist"
+                },
+                {
+                  "args": "push --track fake-track --tag ${{ github.sha }} test/proto",
+                  "exit_code": "0",
+                  "stdout": "${{ env.TEST_BSR_COMMIT }}",
+                  "stderr": ""
+                }
+          ]' > .tmp/test/buf.expectations
+          echo "${PWD}/.tmp/bin" >> "${GITHUB_PATH}"
       - name: run action
         id: run-action
         uses: ./

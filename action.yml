@@ -26,14 +26,34 @@ outputs:
 runs:
   using: composite
   steps:
+    - id: cache-setup
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        echo "::set-output name=key::${RUNNER_OS}-buf-push-action-${GITHUB_ACTION_REF:-$(git rev-parse --short HEAD)}"
+        echo "::set-output name=path::${RUNNER_TEMP}/buf-push-action/bin"
+    - id: notice
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        echo "::notice:: cache-key ${{ steps.cache-setup.outputs.key }}"
+        echo "::notice:: cache-path ${{ steps.cache-setup.outputs.path }}"
+        echo "::notice:: action_path ${{ github.action_path }}"
+    - uses: actions/cache@v2
+      with:
+        path: ${{ steps.cache-setup.outputs.path }}
+        key: ${{ steps.cache-setup.outputs.key }}
+    - name: build
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: ./downloadbinary.bash "${{ github.action_ref }}" "${{ steps.cache-setup.outputs.path }}"
     - name: push
       id: push
       shell: bash
       env:
         BUF_TOKEN: ${{ inputs.buf_token }}
-        CACHE: ${{ runner.temp }}/${{ github.action }}
-        BUF_BETA_SUPPRESS_WARNINGS: "1"
+        GITHUB_TOKEN: ${{ github.token }}
       run: |
-        make --directory="${GITHUB_ACTION_PATH}" yq
-        PATH="${CACHE}/bin:${PATH}"
-        "${GITHUB_ACTION_PATH}/push.bash" "${{ inputs.input }}" "${{ inputs.track }}"
+        "${{ steps.cache-setup.outputs.path }}/buf-push-action" "${{ inputs.input }}" "${{ inputs.track }}" "${{ github.sha }}"
