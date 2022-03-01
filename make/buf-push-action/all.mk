@@ -33,10 +33,10 @@ directoryhash:
 
 # Settable
 # This is the release that downloadbinary will download buf-push-action from if it exists.
-DOWNLOADBINARY_RELEASE := ""
+DOWNLOADBINARY_RELEASE ?= ""
 # Settable
 # This is the directory where downloadbinary will place buf-push-action.
-DOWNLOADBINARY_OUTPUT_DIR := ""
+DOWNLOADBINARY_OUTPUT_DIR ?= ""
 
 .PHONY: downloadbinary
 downloadbinary:
