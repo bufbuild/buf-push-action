@@ -87,4 +87,7 @@ if [ "${INSTALLED_GO_VERSION}" != "${GO_VERSION}" ]; then
   GO_CMD="go${GO_VERSION}"
 fi
 
+# make GOTMPDIR if it doesn't exist. See https://github.com/golang/go/issues/32320
+mkdir -p "$("${GO_CMD}" env GOTMPDIR)"
+
 "${GO_CMD}" install ./cmd/buf-push-action || fail "could not install buf-push-action"
