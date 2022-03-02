@@ -76,6 +76,11 @@ GOBIN="$(cd "$(dirname "${OUTPUT_DIR}")"; pwd -P)/$(basename "${OUTPUT_DIR}")"
 export GOBIN
 PATH="${GOBIN}:${PATH}"
 
+# We can't rely on go to create GOTMPDIR. See https://github.com/golang/go/issues/32320
+GOTMPDIR="$(mktemp -d)"
+export GOTMPDIR
+trap 'rm -rf "${GOTMPDIR}"' EXIT
+
 # as a last resort, build from source
 GO_CMD="go"
 INSTALLED_GO_VERSION="$(go version | cut -d ' ' -f 3)" || fail "go is not installed"
@@ -85,11 +90,6 @@ if [ "${INSTALLED_GO_VERSION}" != "${GO_VERSION}" ]; then
   GO111MODULE=off go get "golang.org/dl/go${GO_VERSION}" > /dev/null || fail "could not get go${GO_VERSION}"
   "go${GO_VERSION}" download > /dev/null  || fail "could not download go${GO_VERSION}"
   GO_CMD="go${GO_VERSION}"
-fi
-
-# make GOTMPDIR if it doesn't exist. See https://github.com/golang/go/issues/32320
-if [ -n "$("${GO_CMD}" env GOTMPDIR)" ]; then
-  mkdir -p "$("${GO_CMD}" env GOTMPDIR)"
 fi
 
 "${GO_CMD}" install ./cmd/buf-push-action || fail "could not install buf-push-action"
