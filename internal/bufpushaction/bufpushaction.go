@@ -149,14 +149,13 @@ type pusher struct {
 var errNoTrackSupport = errors.New("The installed version of buf does not support setting the track. Please use buf v1.0.0 or newer.")
 
 func (p pusher) push(ctx context.Context) error {
-	// versions of buf prior to --track support emit this message when running `buf push --track foo --help`
-	const unsupportedTrackHelpFragment = "unknown flag: --track"
+	// versions of buf prior to --track support emit "unknown flag: --track" when running `buf push --track foo --help`
 
 	// make sure --track is supported
 	if p.track != "main" {
 		_, stderr, err := p.bufRunner.Run(ctx, "push", "--track", p.track, "--help")
 		if err != nil {
-			if strings.Contains(stderr, unsupportedTrackHelpFragment) {
+			if strings.Contains(stderr, "unknown flag: --track") {
 				return errNoTrackSupport
 			}
 			return err
