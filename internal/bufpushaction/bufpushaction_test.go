@@ -316,3 +316,7 @@ func compareCommitsRun(base, head string, status github.CompareCommitsStatus) fa
 		status:     status,
 	}
 }
+
+func bsrCommitURL(moduleName, commit string) string {
+	return fmt.Sprintf("https://%s/tree/%s", moduleName, commit)
+}

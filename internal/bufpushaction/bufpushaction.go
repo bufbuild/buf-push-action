@@ -215,7 +215,7 @@ func (p pusher) push(ctx context.Context) error {
 		commit = commitInfo.Commit
 	}
 	p.setOutput("commit", commit)
-	p.setOutput("commit_url", bsrCommitURL(p.moduleName, commit))
+	p.setOutput("commit_url", fmt.Sprintf("https://%s/tree/%s", p.moduleName, commit))
 	return nil
 }
 
@@ -233,10 +233,6 @@ func (p pusher) setOutput(name, value string) {
 
 func workflowOutput(name, value string) string {
 	return fmt.Sprintf("::set-output name=%s::%s", name, value)
-}
-
-func bsrCommitURL(moduleName, commit string) string {
-	return fmt.Sprintf("https://%s/tree/%s", moduleName, commit)
 }
 
 func (p pusher) getTags(ctx context.Context) ([]string, error) {
