@@ -248,7 +248,7 @@ func (pt pushTest) test(t *testing.T) {
 		t:    t,
 		runs: pt.bufRuns,
 	}
-	err := pusher{
+	err := (&pusher{
 		input:            testInput,
 		track:            pt.track,
 		stdout:           &stdout,
@@ -257,7 +257,7 @@ func (pt pushTest) test(t *testing.T) {
 		moduleName:       testModuleName,
 		githubClient:     &githubClient,
 		bufRunner:        &cmdRunner,
-	}.push(ctx)
+	}).push(ctx)
 	if pt.errorAssertion != nil {
 		pt.errorAssertion(err)
 	} else {

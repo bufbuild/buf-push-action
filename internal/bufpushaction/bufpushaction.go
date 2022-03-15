@@ -88,7 +88,7 @@ func run(ctx context.Context, container appflag.Container) error {
 	if err != nil {
 		return fmt.Errorf("name not found in  %s", input)
 	}
-	return pusher{
+	return (&pusher{
 		input:            input,
 		track:            track,
 		stdout:           container.Stdout(),
@@ -100,7 +100,7 @@ func run(ctx context.Context, container appflag.Container) error {
 			bufToken: container.Env(bufTokenKey),
 			path:     container.Env("PATH"),
 		},
-	}.push(ctx)
+	}).push(ctx)
 }
 
 // interceptErrorForGithubAction intercepts errors and wraps them in formatting required for an error to be shown in
@@ -148,7 +148,7 @@ type pusher struct {
 
 var errNoTrackSupport = errors.New("The installed version of buf does not support setting the track. Please use buf v1.0.0 or newer.")
 
-func (p pusher) push(ctx context.Context) error {
+func (p *pusher) push(ctx context.Context) error {
 	// versions of buf prior to --track support emit "unknown flag: --track" when running `buf push --track foo --help`
 
 	// make sure --track is supported
@@ -218,7 +218,7 @@ func (p pusher) push(ctx context.Context) error {
 	return nil
 }
 
-func (p pusher) notice(message string) {
+func (p *pusher) notice(message string) {
 	fmt.Fprintln(p.stdout, workflowNotice(message))
 }
 
@@ -226,7 +226,7 @@ func workflowNotice(message string) string {
 	return fmt.Sprintf("::notice::%s", message)
 }
 
-func (p pusher) setOutput(name, value string) {
+func (p *pusher) setOutput(name, value string) {
 	fmt.Fprintln(p.stdout, workflowOutput(name, value))
 }
 
@@ -234,7 +234,7 @@ func workflowOutput(name, value string) string {
 	return fmt.Sprintf("::set-output name=%s::%s", name, value)
 }
 
-func (p pusher) getTags(ctx context.Context) ([]string, error) {
+func (p *pusher) getTags(ctx context.Context) ([]string, error) {
 	trackRef := fmt.Sprintf("%s:%s", p.moduleName, p.track)
 	stdout, stderr, err := p.bufRunner.Run(ctx, "beta", "registry", "commit", "get", trackRef, "--format", "json")
 	if err != nil {
