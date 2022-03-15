@@ -40,14 +40,15 @@ We recommend using [`buf-setup-action`][buf-setup] to install it (as in the exam
 
 Parameter | Description | Required | Default
 :---------|:------------|:---------|:-------
-`buf_token` | The [Buf authentication token][buf-token] used for private [Inputs][input] | ✅  | [`${{github.token}}`][github-token]
-`input` | The path of the [Input] you want to push to BSR as a module | | `.`
+`buf_token` | The [Buf authentication token][buf-token] used for private [inputs][input] | ✅  | [`${{github.token}}`][github-token]
+`input` | The path of the [Buf input][input] you want to push to BSR as a module | | `.`
+`track` | The BSR [track] to push the module to | | `main`
 
 > These parameters are derived from [`action.yml`][./action.yml].
 
 ## Common tasks
 
-### Run against Input in sub-directory
+### Run against a Buf input in a sub-directory
 
 Some repositories are structured so that their [`buf.yaml`][buf-yaml] configuration file is defined
 in a sub-directory alongside their Protobuf sources, such as a `proto` directory. Here's an example:
@@ -110,6 +111,45 @@ jobs:
           buf_token: ${{ secrets.BUF_TOKEN }}
 ```
 
+### Pushing to a track
+
+When you push modules to the [BSR], they are implicitly added to a default `main` [track], but you
+can also push to others. With this configuration, the module would be pushed to a track called
+`development`:
+
+```yaml
+on: # Apply to all pushes to `main`
+  push:
+    branches:
+      - main
+jobs:
+  push-to-development-track:
+    runs-on: ubuntu-latest
+    steps:
+      - # Run `git checkout`
+      - uses: actions/checkout@v2
+      # Install the `buf` CLI
+      - uses: bufbuild/buf-setup-action@v0.6.0
+      # Push the validated module to the BSR
+      - uses: bufbuild/buf-push-action@v1
+        with:
+          buf_token: ${{ secrets.BUF_TOKEN }}
+          # Push to the `development` track rather than `main`
+          track: development
+
+```
+
+And as with any GitHub Action, you can use environment variables in the track name. This 
+configuration, for example, would push to a track with the same name as the [Git branch 
+or tag][ctx] triggering the workflow:
+
+```yaml
+- uses: bufbuild/buf-push-action@v1
+  with:
+    buf_token: ${{ secrets.BUF_TOKEN }}
+    track: ${{ github.ref }}
+```
+
 [breaking]: https://docs.buf.build/breaking
 [bsr]: https://docs.buf.build/bsr
 [bsr-token]: https://docs.buf.build/bsr/authentication
@@ -118,8 +158,10 @@ jobs:
 [buf-setup]: https://github.com/marketplace/actions/buf-setup
 [buf-token]: https://docs.buf.build/bsr/authentication#create-an-api-token
 [buf-yaml]: https://docs.buf.build/configuration/v1/buf-yaml
+[ctx]: https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
 [github-secret]: https://docs.github.com/en/actions/reference/encrypted-secrets
 [github-token]: https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
 [input]: https://docs.buf.build/reference/inputs
 [lint]: https://docs.buf.build/lint
 [modules]: https://docs.buf.build/bsr/overview#module
+[track]: https://docs.buf.build/bsr/overview#track
