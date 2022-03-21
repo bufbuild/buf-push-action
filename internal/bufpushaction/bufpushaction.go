@@ -231,7 +231,12 @@ func push(
 				fmt.Sprintf("Skipping because the current git commit is behind the head of track %s", track),
 			)
 			return nil
-		case github.CompareCommitsStatusDiverged, github.CompareCommitsStatusAhead:
+		case github.CompareCommitsStatusDiverged:
+			writeWorkflowNotice(
+				stdout,
+				fmt.Sprintf("The current git commit is diverged from the head of track %s", track),
+			)
+		case github.CompareCommitsStatusAhead:
 		default:
 			return fmt.Errorf("unexpected status: %s", status)
 		}
