@@ -43,7 +43,7 @@ const (
 
 func TestPush(t *testing.T) {
 	t.Run("re-push the current main track head", func(t *testing.T) {
-		pushTest{
+		runPushTest(t, pushTest{
 			track: testMainTrack,
 			bufRuns: []fakeCommandRunnerRun{
 				getTagsRun(t, testModuleMainTrack, testGitCommit1),
@@ -56,60 +56,60 @@ func TestPush(t *testing.T) {
 				},
 			},
 			expectStdout: []string{
-				workflowNotice("Skipping because the current git commit is already the head of track main"),
+				"::notice::Skipping because the current git commit is already the head of track main",
 			},
-		}.test(t)
+		})
 	})
 
 	t.Run("old buf version", func(t *testing.T) {
-		pushTest{
+		runPushTest(t, pushTest{
 			track: testNonMainTrack,
 			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(testNonMainTrack, false),
+				trackHelpRun(false),
 			},
 			errorAssertion: func(err error) {
 				assert.Equal(t, errNoTrackSupport, err)
 			},
-		}.test(t)
+		})
 	})
 
 	t.Run("re-push the current non-main track head", func(t *testing.T) {
-		pushTest{
+		runPushTest(t, pushTest{
 			track: testNonMainTrack,
 			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(testNonMainTrack, true),
+				trackHelpRun(true),
 				getTagsRun(t, testModuleNonMainTrack, testGitCommit1),
 			},
 			compareCommitRuns: []fakeCompareCommits{
 				compareCommitsRun(testGitCommit1, testGitCommit1, github.CompareCommitsStatusIdentical),
 			},
 			expectStdout: []string{
-				workflowNotice("Skipping because the current git commit is already the head of track non-main"),
+				"::notice::Skipping because the current git commit is already the head of track non-main",
 			},
-		}.test(t)
+		})
 	})
 
 	t.Run("push a commit behind head", func(t *testing.T) {
-		pushTest{
+		runPushTest(t, pushTest{
 			track: testNonMainTrack,
 			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(testNonMainTrack, true),
+				trackHelpRun(true),
 				getTagsRun(t, testModuleNonMainTrack, testGitCommit2),
 			},
 			compareCommitRuns: []fakeCompareCommits{
 				compareCommitsRun(testGitCommit2, testGitCommit1, github.CompareCommitsStatusBehind),
 			},
 			expectStdout: []string{
-				workflowNotice("Skipping because the current git commit is behind the head of track non-main"),
+				"::notice::Skipping because the current git commit is behind the head of track non-main",
 			},
-		}.test(t)
+		})
 	})
 
 	t.Run("push a commit ahead of head", func(t *testing.T) {
-		pushTest{
+		runPushTest(t, pushTest{
 			track: testNonMainTrack,
 			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(testNonMainTrack, true),
+				trackHelpRun(true),
 				getTagsRun(t, testModuleNonMainTrack, testGitCommit2),
 				{
 					expectArgs: []string{"push", "--track", testNonMainTrack, "--tag", testGitCommit1, testInput},
@@ -120,19 +120,19 @@ func TestPush(t *testing.T) {
 				compareCommitsRun(testGitCommit2, testGitCommit1, github.CompareCommitsStatusAhead),
 			},
 			expectStdout: []string{
-				workflowOutput("commit", testBsrCommit),
-				workflowOutput("commit_url", bsrCommitURL(testModuleName, testBsrCommit)),
+				fmt.Sprintf("::set-output name=commit::%s", testBsrCommit),
+				fmt.Sprintf("::set-output name=commit_url::%s", bsrCommitURL(testModuleName, testBsrCommit)),
 			},
-		}.test(t)
+		})
 	})
 
 	t.Run("skips non-git tags", func(t *testing.T) {
 		shortTag := "some-random-tag"
 		nonHexTag := strings.Repeat("g", 40)
-		pushTest{
+		runPushTest(t, pushTest{
 			track: testNonMainTrack,
 			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(testNonMainTrack, true),
+				trackHelpRun(true),
 				getTagsRun(t, testModuleNonMainTrack, shortTag, nonHexTag),
 				{
 					expectArgs: []string{"push", "--track", testNonMainTrack, "--tag", testGitCommit1, testInput},
@@ -140,18 +140,18 @@ func TestPush(t *testing.T) {
 				},
 			},
 			expectStdout: []string{
-				workflowOutput("commit", testBsrCommit),
-				workflowOutput("commit_url", bsrCommitURL(testModuleName, testBsrCommit)),
+				fmt.Sprintf("::set-output name=commit::%s", testBsrCommit),
+				fmt.Sprintf("::set-output name=commit_url::%s", bsrCommitURL(testModuleName, testBsrCommit)),
 			},
-		}.test(t)
+		})
 	})
 
 	t.Run("bsr repository does not exist", func(t *testing.T) {
 		repoNotFoundMessage := fmt.Sprintf("Failure: repository %q was not found", testModuleName)
-		pushTest{
+		runPushTest(t, pushTest{
 			track: testNonMainTrack,
 			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(testNonMainTrack, true),
+				trackHelpRun(true),
 				{
 					expectArgs: []string{"beta", "registry", "commit", "get", testModuleNonMainTrack, "--format", "json"},
 					stderr:     fmt.Sprintf("Failure: %q does not exist", testModuleName),
@@ -166,15 +166,15 @@ func TestPush(t *testing.T) {
 			errorAssertion: func(err error) {
 				require.EqualError(t, err, repoNotFoundMessage)
 			},
-		}.test(t)
+		})
 	})
 
 	t.Run("push commit with same digest as head", func(t *testing.T) {
 		dupContentMessage := "The latest commit has the same content; not creating a new commit."
-		pushTest{
+		runPushTest(t, pushTest{
 			track: testNonMainTrack,
 			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(testNonMainTrack, true),
+				trackHelpRun(true),
 				getTagsRun(t, testModuleNonMainTrack, testGitCommit2),
 				{
 					expectArgs: []string{"push", "--track", testNonMainTrack, "--tag", testGitCommit1, testInput},
@@ -189,11 +189,11 @@ func TestPush(t *testing.T) {
 				compareCommitsRun(testGitCommit2, testGitCommit1, github.CompareCommitsStatusAhead),
 			},
 			expectStdout: []string{
-				workflowNotice(dupContentMessage),
-				workflowOutput("commit", testBsrCommit),
-				workflowOutput("commit_url", bsrCommitURL(testModuleName, testBsrCommit)),
+				fmt.Sprintf("::notice::%s", dupContentMessage),
+				fmt.Sprintf("::set-output name=commit::%s", testBsrCommit),
+				fmt.Sprintf("::set-output name=commit_url::%s", bsrCommitURL(testModuleName, testBsrCommit)),
 			},
-		}.test(t)
+		})
 	})
 
 	t.Run("tagged git commit not found on github", func(t *testing.T) {
@@ -203,10 +203,10 @@ func TestPush(t *testing.T) {
 				Request:    &http.Request{},
 			},
 		}
-		pushTest{
+		runPushTest(t, pushTest{
 			track: testNonMainTrack,
 			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(testNonMainTrack, true),
+				trackHelpRun(true),
 				getTagsRun(t, testModuleNonMainTrack, testGitCommit2),
 				{
 					expectArgs: []string{"push", "--track", testNonMainTrack, "--tag", testGitCommit1, testInput},
@@ -221,10 +221,70 @@ func TestPush(t *testing.T) {
 				},
 			},
 			expectStdout: []string{
-				workflowOutput("commit", testBsrCommit),
-				workflowOutput("commit_url", bsrCommitURL(testModuleName, testBsrCommit)),
+				fmt.Sprintf("::set-output name=commit::%s", testBsrCommit),
+				fmt.Sprintf("::set-output name=commit_url::%s", bsrCommitURL(testModuleName, testBsrCommit)),
 			},
-		}.test(t)
+		})
+	})
+}
+
+func TestDeleteTrack(t *testing.T) {
+	t.Run("main track", func(t *testing.T) {
+		runDeleteTrackTest(t, deleteTrackTest{
+			track:        testMainTrack,
+			expectStdout: []string{"::notice::cannot delete main track"},
+		})
+	})
+	t.Run("old buf version", func(t *testing.T) {
+		runDeleteTrackTest(t, deleteTrackTest{
+			track: testNonMainTrack,
+			bufRuns: []fakeCommandRunnerRun{
+				trackHelpRun(false),
+			},
+			errorAssertion: func(err error) {
+				assert.Equal(t, errNoTrackSupport, err)
+			},
+		})
+	})
+	t.Run("success", func(t *testing.T) {
+		runDeleteTrackTest(t, deleteTrackTest{
+			track: testNonMainTrack,
+			bufRuns: []fakeCommandRunnerRun{
+				trackHelpRun(true),
+				{
+					expectArgs: []string{"beta", "registry", "track", "delete", testModuleNonMainTrack, "--force"},
+				},
+			},
+		})
+	})
+	t.Run("error", func(t *testing.T) {
+		runDeleteTrackTest(t, deleteTrackTest{
+			track: testNonMainTrack,
+			bufRuns: []fakeCommandRunnerRun{
+				trackHelpRun(true),
+				{
+					expectArgs: []string{"beta", "registry", "track", "delete", testModuleNonMainTrack, "--force"},
+					stderr:     "stderr message",
+					err:        assert.AnError,
+				},
+			},
+			errorAssertion: func(err error) {
+				assert.EqualError(t, err, "stderr message")
+			},
+		})
+	})
+	t.Run("emit stderr on success", func(t *testing.T) {
+		runDeleteTrackTest(t, deleteTrackTest{
+			track: testNonMainTrack,
+			bufRuns: []fakeCommandRunnerRun{
+				trackHelpRun(true),
+				{
+					expectArgs: []string{"beta", "registry", "track", "delete", testModuleNonMainTrack, "--force"},
+					stderr:     "stderr message",
+				},
+			},
+			expectStdout: []string{"::notice::stderr message"},
+		})
 	})
 }
 
@@ -233,13 +293,12 @@ type pushTest struct {
 	bufRuns           []fakeCommandRunnerRun
 	compareCommitRuns []fakeCompareCommits
 	expectStdout      []string
-	expectStderr      []string
 	errorAssertion    func(err error)
 }
 
-func (pt pushTest) test(t *testing.T) {
+func runPushTest(t *testing.T, pt pushTest) {
 	ctx := context.Background()
-	var stdout, stderr bytes.Buffer
+	var stdout bytes.Buffer
 	githubClient := fakeGithubClient{
 		t:                  t,
 		fakeCompareCommits: pt.compareCommitRuns,
@@ -248,16 +307,7 @@ func (pt pushTest) test(t *testing.T) {
 		t:    t,
 		runs: pt.bufRuns,
 	}
-	err := (&pusher{
-		input:            testInput,
-		track:            pt.track,
-		stdout:           &stdout,
-		stderr:           &stderr,
-		currentGitCommit: testGitCommit1,
-		moduleName:       testModuleName,
-		githubClient:     &githubClient,
-		bufRunner:        &cmdRunner,
-	}).push(ctx)
+	err := push(ctx, testInput, pt.track, testModuleName, testGitCommit1, &githubClient, &stdout, &cmdRunner)
 	if pt.errorAssertion != nil {
 		pt.errorAssertion(err)
 	} else {
@@ -265,14 +315,37 @@ func (pt pushTest) test(t *testing.T) {
 	}
 	expectStdout := strings.Join(pt.expectStdout, "\n")
 	assert.Equal(t, expectStdout, strings.TrimSpace(stdout.String()), "stdout")
-	expectStderr := strings.Join(pt.expectStderr, "\n")
-	assert.Equal(t, expectStderr, strings.TrimSpace(stderr.String()), "stderr")
 	assert.Empty(t, githubClient.fakeCompareCommits, "missed compareCommit expectations")
 	assert.Empty(t, cmdRunner.runs, "missed bufRunner expectations")
 }
 
-func trackHelpRun(trackName string, ok bool) fakeCommandRunnerRun {
-	args := []string{"push", "--track", trackName, "--help"}
+type deleteTrackTest struct {
+	track          string
+	bufRuns        []fakeCommandRunnerRun
+	expectStdout   []string
+	errorAssertion func(err error)
+}
+
+func runDeleteTrackTest(t *testing.T, dt deleteTrackTest) {
+	ctx := context.Background()
+	var stdout bytes.Buffer
+	cmdRunner := fakeCommandRunner{
+		t:    t,
+		runs: dt.bufRuns,
+	}
+	err := deleteTrack(ctx, dt.track, testModuleName, &stdout, &cmdRunner)
+	if dt.errorAssertion != nil {
+		dt.errorAssertion(err)
+	} else {
+		assert.NoError(t, err)
+	}
+	expectStdout := strings.Join(dt.expectStdout, "\n")
+	assert.Equal(t, expectStdout, strings.TrimSpace(stdout.String()), "stdout")
+	assert.Empty(t, cmdRunner.runs, "missed bufRunner expectations")
+}
+
+func trackHelpRun(ok bool) fakeCommandRunnerRun {
+	args := []string{"push", "--track", "anytrack", "--help"}
 	if ok {
 		return fakeCommandRunnerRun{
 			expectArgs: args,

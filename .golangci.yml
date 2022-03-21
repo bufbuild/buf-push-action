@@ -1,5 +1,6 @@
 run:
   skip-dirs-use-default: false
+  go: "1.17"
 linters-settings:
   errcheck:
     check-type-assertions: true

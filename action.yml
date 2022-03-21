@@ -49,10 +49,20 @@ runs:
         DOWNLOADBINARY_OUTPUT_DIR: ${{ steps.cache-setup.outputs.path }}
       run: make downloadbinary
     - name: push
+      if:  github.event_name != 'delete'
       id: push
       shell: bash
       env:
         BUF_TOKEN: ${{ inputs.buf_token }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
-        "${{ steps.cache-setup.outputs.path }}/buf-push-action" "${{ inputs.input }}" "${{ inputs.track }}" "${{ github.sha }}"
+        "${{ steps.cache-setup.outputs.path }}/buf-push-action" push "${{ inputs.input }}" "${{ inputs.track }}" "${{ github.sha }}"
+    - name: delete track
+      if: github.event_name == 'delete' && github.event.ref_type == 'branch'
+      id: delete-track
+      shell: bash
+      env:
+        BUF_TOKEN: ${{ inputs.buf_token }}
+        GITHUB_TOKEN: ${{ inputs.github_token }}
+      run: |
+        "${{ steps.cache-setup.outputs.path }}/buf-push-action" delete-track "${{ inputs.input }}" "${{ inputs.track }}"

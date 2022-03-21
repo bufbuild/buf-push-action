@@ -49,14 +49,26 @@ func Main(name string) {
 func NewRootCommand(name string) *appcmd.Command {
 	builder := appflag.NewBuilder(name, appflag.BuilderWithTimeout(120*time.Second))
 	return &appcmd.Command{
-		Use:   name + " <input> <track> <git-commit-hash>",
+		Use:   name,
 		Short: "helper for the GitHub Action buf-push-action",
-		Args:  cobra.ExactArgs(3),
-		Run:   builder.NewRunFunc(run, interceptErrorForGithubAction),
+		SubCommands: []*appcmd.Command{
+			{
+				Use:   "push <input> <track> <git-commit-hash>",
+				Short: "push to BSR",
+				Args:  cobra.ExactArgs(3),
+				Run:   builder.NewRunFunc(runPush, interceptErrorForGithubAction),
+			},
+			{
+				Use:   "delete-track <input> <track>",
+				Short: "delete a track on BSR",
+				Args:  cobra.ExactArgs(2),
+				Run:   builder.NewRunFunc(runDeleteTrack, interceptErrorForGithubAction),
+			},
+		},
 	}
 }
 
-func run(ctx context.Context, container appflag.Container) error {
+func runPush(ctx context.Context, container appflag.Container) error {
 	input := container.Arg(0)
 	track := container.Arg(1)
 	currentGitCommit := container.Arg(2)
@@ -88,19 +100,33 @@ func run(ctx context.Context, container appflag.Container) error {
 	if err != nil {
 		return fmt.Errorf("name not found in  %s", input)
 	}
-	return (&pusher{
-		input:            input,
-		track:            track,
-		stdout:           container.Stdout(),
-		stderr:           container.Stderr(),
-		currentGitCommit: currentGitCommit,
-		moduleName:       moduleName,
-		githubClient:     githubClient,
-		bufRunner: &bufRunner{
+	return push(ctx, input, track, moduleName, currentGitCommit, githubClient, container.Stdout(), &bufRunner{
+		bufToken: container.Env(bufTokenKey),
+		path:     container.Env("PATH"),
+	})
+}
+
+func runDeleteTrack(ctx context.Context, container appflag.Container) error {
+	input := container.Arg(0)
+	track := container.Arg(1)
+	bucket, err := storageos.NewProvider().NewReadWriteBucket(input)
+	if err != nil {
+		return fmt.Errorf("config file not found: %s", input)
+	}
+	moduleName, err := getNameFromConfigFile(ctx, bucket)
+	if err != nil {
+		return fmt.Errorf("name not found in  %s", input)
+	}
+	return deleteTrack(
+		ctx,
+		track,
+		moduleName,
+		container.Stdout(),
+		&bufRunner{
 			bufToken: container.Env(bufTokenKey),
 			path:     container.Env("PATH"),
 		},
-	}).push(ctx)
+	)
 }
 
 // interceptErrorForGithubAction intercepts errors and wraps them in formatting required for an error to be shown in
@@ -135,33 +161,46 @@ func getNameFromConfigFile(ctx context.Context, bucket storage.ReadBucket) (_ st
 	return name.Name, nil
 }
 
-type pusher struct {
-	input            string
-	track            string
-	stdout           io.Writer
-	stderr           io.Writer
-	currentGitCommit string
-	moduleName       string
-	githubClient     github.Client
-	bufRunner        commandRunner
+func deleteTrack(ctx context.Context, track, moduleName string, stdout io.Writer, runner commandRunner) error {
+	if track == "main" {
+		writeWorkflowNotice(stdout, "cannot delete main track")
+		return nil
+	}
+	if err := checkTrackSupport(ctx, runner); err != nil {
+		return err
+	}
+	trackRef := fmt.Sprintf("%s:%s", moduleName, track)
+	_, runStderr, err := runner.Run(ctx, "beta", "registry", "track", "delete", trackRef, "--force")
+	if err != nil {
+		return errors.New(runStderr)
+	}
+	if len(runStderr) > 0 {
+		writeWorkflowNotice(stdout, runStderr)
+	}
+	return nil
 }
 
 var errNoTrackSupport = errors.New("The installed version of buf does not support setting the track. Please use buf v1.0.0 or newer.")
 
-func (p *pusher) push(ctx context.Context) error {
+func push(
+	ctx context.Context,
+	input string,
+	track string,
+	moduleName string,
+	currentGitCommit string,
+	githubClient github.Client,
+	stdout io.Writer,
+	runner commandRunner,
+) error {
 	// versions of buf prior to --track support emit "unknown flag: --track" when running `buf push --track foo --help`
 
 	// make sure --track is supported
-	if p.track != "main" {
-		_, stderr, err := p.bufRunner.Run(ctx, "push", "--track", p.track, "--help")
-		if err != nil {
-			if strings.Contains(stderr, "unknown flag: --track") {
-				return errNoTrackSupport
-			}
+	if track != "main" {
+		if err := checkTrackSupport(ctx, runner); err != nil {
 			return err
 		}
 	}
-	tags, err := p.getTags(ctx)
+	tags, err := getTags(ctx, track, moduleName, runner)
 	if err != nil {
 		return err
 	}
@@ -172,7 +211,7 @@ func (p *pusher) push(ctx context.Context) error {
 		if _, err := hex.DecodeString(tag); err != nil {
 			continue
 		}
-		status, err := p.githubClient.CompareCommits(ctx, tag, p.currentGitCommit)
+		status, err := githubClient.CompareCommits(ctx, tag, currentGitCommit)
 		if err != nil {
 			if github.IsNotFoundError(err) {
 				continue
@@ -181,62 +220,60 @@ func (p *pusher) push(ctx context.Context) error {
 		}
 		switch status {
 		case github.CompareCommitsStatusIdentical:
-			p.notice(fmt.Sprintf("Skipping because the current git commit is already the head of track %s", p.track))
+			writeWorkflowNotice(
+				stdout,
+				fmt.Sprintf("Skipping because the current git commit is already the head of track %s", track),
+			)
 			return nil
 		case github.CompareCommitsStatusBehind:
-			p.notice(fmt.Sprintf("Skipping because the current git commit is behind the head of track %s", p.track))
+			writeWorkflowNotice(
+				stdout,
+				fmt.Sprintf("Skipping because the current git commit is behind the head of track %s", track),
+			)
 			return nil
 		case github.CompareCommitsStatusDiverged, github.CompareCommitsStatusAhead:
 		default:
 			return fmt.Errorf("unexpected status: %s", status)
 		}
 	}
-	stdout, stderr, err := p.bufRunner.Run(ctx, "push", "--track", p.track, "--tag", p.currentGitCommit, p.input)
+	runStdout, runStderr, err := runner.Run(ctx, "push", "--track", track, "--tag", currentGitCommit, input)
 	if err != nil {
-		return errors.New(stderr)
+		return errors.New(runStderr)
 	}
-	if len(stderr) > 0 {
-		p.notice(stderr)
+	if len(runStderr) > 0 {
+		writeWorkflowNotice(stdout, runStderr)
 	}
-	commit := stdout
+	commit := runStdout
 	if commit == "" {
-		trackRef := fmt.Sprintf("%s:%s", p.moduleName, p.track)
-		stdout, stderr, err = p.bufRunner.Run(ctx, "beta", "registry", "commit", "get", trackRef, "--format", "json")
+		trackRef := fmt.Sprintf("%s:%s", moduleName, track)
+		runStdout, runStderr, err = runner.Run(ctx, "beta", "registry", "commit", "get", trackRef, "--format", "json")
 		if err != nil {
-			return errors.New(stderr)
+			return errors.New(runStderr)
 		}
 		var commitInfo struct {
 			Commit string `json:"commit"`
 		}
-		if err := json.Unmarshal([]byte(stdout), &commitInfo); err != nil {
+		if err := json.Unmarshal([]byte(runStdout), &commitInfo); err != nil {
 			return errors.New("unable to parse commit info")
 		}
 		commit = commitInfo.Commit
 	}
-	p.setOutput("commit", commit)
-	p.setOutput("commit_url", fmt.Sprintf("https://%s/tree/%s", p.moduleName, commit))
+	setOutput(stdout, "commit", commit)
+	setOutput(stdout, "commit_url", fmt.Sprintf("https://%s/tree/%s", moduleName, commit))
 	return nil
 }
 
-func (p *pusher) notice(message string) {
-	fmt.Fprintln(p.stdout, workflowNotice(message))
+func writeWorkflowNotice(stdout io.Writer, message string) {
+	fmt.Fprintf(stdout, "::notice::%s\n", message)
 }
 
-func workflowNotice(message string) string {
-	return fmt.Sprintf("::notice::%s", message)
+func setOutput(stdout io.Writer, name, value string) {
+	fmt.Fprintf(stdout, "::set-output name=%s::%s\n", name, value)
 }
 
-func (p *pusher) setOutput(name, value string) {
-	fmt.Fprintln(p.stdout, workflowOutput(name, value))
-}
-
-func workflowOutput(name, value string) string {
-	return fmt.Sprintf("::set-output name=%s::%s", name, value)
-}
-
-func (p *pusher) getTags(ctx context.Context) ([]string, error) {
-	trackRef := fmt.Sprintf("%s:%s", p.moduleName, p.track)
-	stdout, stderr, err := p.bufRunner.Run(ctx, "beta", "registry", "commit", "get", trackRef, "--format", "json")
+func getTags(ctx context.Context, track, moduleName string, bufRunner commandRunner) ([]string, error) {
+	trackRef := fmt.Sprintf("%s:%s", moduleName, track)
+	stdout, stderr, err := bufRunner.Run(ctx, "beta", "registry", "commit", "get", trackRef, "--format", "json")
 	if err != nil {
 		if strings.Contains(stderr, "does not exist") {
 			return nil, nil
@@ -257,4 +294,15 @@ func (p *pusher) getTags(ctx context.Context) ([]string, error) {
 		tags[i] = tag.Name
 	}
 	return tags, nil
+}
+
+func checkTrackSupport(ctx context.Context, bufRunner commandRunner) error {
+	_, stderr, err := bufRunner.Run(ctx, "push", "--track", "anytrack", "--help")
+	if err != nil {
+		if strings.Contains(stderr, "unknown flag: --track") {
+			return errNoTrackSupport
+		}
+		return err
+	}
+	return nil
 }

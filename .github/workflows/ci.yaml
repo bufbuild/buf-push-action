@@ -71,7 +71,7 @@ jobs:
           chmod +x .tmp/bin/buf
           echo '[
                 {
-                  "args": "push --track fake-track --help",
+                  "args": "push --track anytrack --help",
                   "exit_code": "0",
                   "stdout": "Usage:\n  buf push <source> [flags]\n  ...\n",
                   "stderr": ""
