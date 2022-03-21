@@ -11,7 +11,9 @@ Pushed modules are created with the Git commit SHA as the module tag.
 Here's an example usage of `buf-push-action`:
 
 ```yaml
-on: push
+on: 
+  - push
+  - delete
 jobs:
   push-module:
     runs-on: ubuntu-latest
@@ -30,6 +32,7 @@ jobs:
           track: ${{ github.ref_name }}
       # Add a commit status with a link to the newly pushed module on BSR
       - name: post commit status to github
+        if: github.event_name != 'delete'
         env:
           GIHUB_TOKEN: ${{ github.token }}
         run: |
