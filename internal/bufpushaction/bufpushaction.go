@@ -26,13 +26,12 @@ import (
 	"time"
 
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
+	"github.com/bufbuild/buf/private/bufpkg/bufconfig"
 	"github.com/bufbuild/buf/private/pkg/app/appcmd"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
 	"github.com/bufbuild/buf/private/pkg/storage"
 	"github.com/bufbuild/buf/private/pkg/storage/storageos"
 	"github.com/spf13/cobra"
-	"go.uber.org/multierr"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -144,22 +143,12 @@ func interceptErrorForGithubAction(
 	}
 }
 
-func getNameFromConfigFile(ctx context.Context, bucket storage.ReadBucket) (_ string, retErr error) {
-	file, err := bucket.Get(ctx, "buf.yaml")
+func getNameFromConfigFile(ctx context.Context, bucket storage.ReadBucket) (string, error) {
+	config, err := bufconfig.GetConfigForBucket(ctx, bucket)
 	if err != nil {
 		return "", err
 	}
-	defer func() {
-		retErr = multierr.Append(retErr, file.Close())
-	}()
-	name := struct {
-		Name string `yaml:"name"`
-	}{}
-	err = yaml.NewDecoder(file).Decode(&name)
-	if err != nil {
-		return "", err
-	}
-	return name.Name, nil
+	return config.ModuleIdentity.IdentityString(), nil
 }
 
 func deleteTrack(ctx context.Context, track, moduleName string, stdout io.Writer, runner commandRunner) error {
