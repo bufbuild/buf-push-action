@@ -57,12 +57,13 @@ We recommend using [`buf-setup-action`][buf-setup] to install it (as in the exam
 
 ## Configuration
 
-| Parameter      | Description                                                                                              | Required | Default                             |
-|:---------------|:---------------------------------------------------------------------------------------------------------|:---------|:------------------------------------|
-| `buf_token`    | The [Buf authentication token][buf-token] used for private [Buf inputs][input]                           | ✅        |                                     |
-| `input`        | The path of the [input] you want to push to BSR as a module                                              |          | `.`                                 |
-| `track`        | The track to push to                                                                                     |          | `main`                              |
-| `github_token` | The GitHub token to use when making API requests. Must have `content:read` permission on the repository. |          | [`${{github.token}}`][github-token] |
+| Parameter        | Description                                                                                              | Required | Default                             |
+|:-----------------|:---------------------------------------------------------------------------------------------------------|:---------|:------------------------------------|
+| `buf_token`      | The [Buf authentication token][buf-token] used for private [Buf inputs][input]                           | ✅        |                                     |
+| `default_branch` | The git branch that should be pushed to the main track on BSR                                            |          | `main`                              |
+| `input`          | The path of the [input] you want to push to BSR as a module                                              |          | `.`                                 |
+| `track`          | The track to push to                                                                                     |          | `${{github.ref_name}}`              |
+| `github_token`   | The GitHub token to use when making API requests. Must have `content:read` permission on the repository. |          | [`${{github.token}}`][github-token] |
 
 > These parameters are derived from [`action.yml`](./action.yml).
 
