@@ -126,6 +126,39 @@ func TestPush(t *testing.T) {
 		})
 	})
 
+	t.Run("custom default branch", func(t *testing.T) {
+		runPushTest(t, pushTest{
+			track:         testNonMainTrack,
+			defaultBranch: testNonMainTrack,
+			refName:       testNonMainTrack,
+			bufRuns: []fakeCommandRunnerRun{
+				getTagsRun(t, testModuleMainTrack, testGitCommit2),
+				{
+					expectArgs: []string{"push", "--track", testMainTrack, "--tag", testGitCommit1, testInput},
+					stdout:     testBsrCommit,
+				},
+			},
+			compareCommitRuns: []fakeCompareCommits{
+				compareCommitsRun(testGitCommit2, testGitCommit1, github.CompareCommitsStatusAhead),
+			},
+			expectStdout: []string{
+				fmt.Sprintf("::set-output name=commit::%s", testBsrCommit),
+				fmt.Sprintf("::set-output name=commit_url::%s", bsrCommitURL(testModuleName, testBsrCommit)),
+			},
+		})
+	})
+
+	t.Run("custom default branch push to main", func(t *testing.T) {
+		runPushTest(t, pushTest{
+			track:         testMainTrack,
+			defaultBranch: testNonMainTrack,
+			refName:       testMainTrack,
+			errorAssertion: func(err error) {
+				assert.EqualError(t, err, "cannot push to main track from a non-default branch")
+			},
+		})
+	})
+
 	t.Run("skips non-git tags", func(t *testing.T) {
 		shortTag := "some-random-tag"
 		nonHexTag := strings.Repeat("g", 40)
@@ -290,6 +323,8 @@ func TestDeleteTrack(t *testing.T) {
 
 type pushTest struct {
 	track             string
+	defaultBranch     string
+	refName           string
 	bufRuns           []fakeCommandRunnerRun
 	compareCommitRuns []fakeCompareCommits
 	expectStdout      []string
@@ -307,7 +342,26 @@ func runPushTest(t *testing.T, pt pushTest) {
 		t:    t,
 		runs: pt.bufRuns,
 	}
-	err := push(ctx, testInput, pt.track, testModuleName, testGitCommit1, &githubClient, &stdout, &cmdRunner)
+	defaultBranch := pt.defaultBranch
+	if defaultBranch == "" {
+		defaultBranch = "main"
+	}
+	refName := pt.refName
+	if refName == "" {
+		refName = "main"
+	}
+	err := push(
+		ctx,
+		testInput,
+		pt.track,
+		testModuleName,
+		testGitCommit1,
+		defaultBranch,
+		refName,
+		&githubClient,
+		&stdout,
+		&cmdRunner,
+	)
 	if pt.errorAssertion != nil {
 		pt.errorAssertion(err)
 	} else {
@@ -333,7 +387,7 @@ func runDeleteTrackTest(t *testing.T, dt deleteTrackTest) {
 		t:    t,
 		runs: dt.bufRuns,
 	}
-	err := deleteTrack(ctx, dt.track, testModuleName, &stdout, &cmdRunner)
+	err := deleteTrack(ctx, dt.track, testModuleName, "main", "main", &stdout, &cmdRunner)
 	if dt.errorAssertion != nil {
 		dt.errorAssertion(err)
 	} else {

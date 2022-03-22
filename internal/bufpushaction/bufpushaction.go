@@ -54,15 +54,15 @@ func NewRootCommand(name string) *appcmd.Command {
 		Short: "helper for the GitHub Action buf-push-action",
 		SubCommands: []*appcmd.Command{
 			{
-				Use:   "push <input> <track> <git-commit-hash>",
+				Use:   "push <input> <track> <git-commit-hash> <default-branch> <ref-name>",
 				Short: "push to BSR",
-				Args:  cobra.ExactArgs(3),
+				Args:  cobra.ExactArgs(5),
 				Run:   builder.NewRunFunc(runPush, interceptErrorForGithubAction),
 			},
 			{
-				Use:   "delete-track <input> <track>",
+				Use:   "delete-track <input> <track> <default-branch> <ref-name>",
 				Short: "delete a track on BSR",
-				Args:  cobra.ExactArgs(2),
+				Args:  cobra.ExactArgs(4),
 				Run:   builder.NewRunFunc(runDeleteTrack, interceptErrorForGithubAction),
 			},
 		},
@@ -73,6 +73,8 @@ func runPush(ctx context.Context, container appflag.Container) error {
 	input := container.Arg(0)
 	track := container.Arg(1)
 	currentGitCommit := container.Arg(2)
+	defaultBranch := container.Arg(3)
+	refName := container.Arg(4)
 
 	if _, err := exec.LookPath("buf"); err != nil {
 		return errors.New(`buf is not installed; please add the "bufbuild/buf-setup-action" step to your job found at https://github.com/bufbuild/buf-setup-action`)
@@ -100,15 +102,28 @@ func runPush(ctx context.Context, container appflag.Container) error {
 	if err != nil {
 		return fmt.Errorf("name not found in  %s", input)
 	}
-	return push(ctx, input, track, moduleName, currentGitCommit, githubClient, container.Stdout(), &bufRunner{
-		bufToken: container.Env(bufTokenKey),
-		path:     container.Env("PATH"),
-	})
+	return push(
+		ctx,
+		input,
+		track,
+		moduleName,
+		currentGitCommit,
+		defaultBranch,
+		refName,
+		githubClient,
+		container.Stdout(),
+		&bufRunner{
+			bufToken: container.Env(bufTokenKey),
+			path:     container.Env("PATH"),
+		})
 }
 
 func runDeleteTrack(ctx context.Context, container appflag.Container) error {
 	input := container.Arg(0)
 	track := container.Arg(1)
+	defaultBranch := container.Arg(2)
+	refName := container.Arg(3)
+
 	bucket, err := storageos.NewProvider().NewReadWriteBucket(input)
 	if err != nil {
 		return fmt.Errorf("config file not found: %s", input)
@@ -117,16 +132,10 @@ func runDeleteTrack(ctx context.Context, container appflag.Container) error {
 	if err != nil {
 		return fmt.Errorf("name not found in  %s", input)
 	}
-	return deleteTrack(
-		ctx,
-		track,
-		moduleName,
-		container.Stdout(),
-		&bufRunner{
-			bufToken: container.Env(bufTokenKey),
-			path:     container.Env("PATH"),
-		},
-	)
+	return deleteTrack(ctx, track, moduleName, defaultBranch, refName, container.Stdout(), &bufRunner{
+		bufToken: container.Env(bufTokenKey),
+		path:     container.Env("PATH"),
+	})
 }
 
 // interceptErrorForGithubAction intercepts errors and wraps them in formatting required for an error to be shown in
@@ -151,7 +160,15 @@ func getNameFromConfigFile(ctx context.Context, bucket storage.ReadBucket) (stri
 	return config.ModuleIdentity.IdentityString(), nil
 }
 
-func deleteTrack(ctx context.Context, track, moduleName string, stdout io.Writer, runner commandRunner) error {
+func deleteTrack(
+	ctx context.Context,
+	track, moduleName,
+	defaultBranch,
+	refName string,
+	stdout io.Writer,
+	runner commandRunner,
+) error {
+	track = resolveTrack(track, defaultBranch, refName)
 	if track == "main" {
 		writeWorkflowNotice(stdout, "Skipping because the main track can not be deleted from BSR")
 		return nil
@@ -176,10 +193,20 @@ func push(
 	track string,
 	moduleName string,
 	currentGitCommit string,
+	defaultBranch string,
+	refName string,
 	githubClient github.Client,
 	stdout io.Writer,
 	runner commandRunner,
 ) error {
+	// Error when track is main and not overridden but the default branch is not main.
+	// This is for situations where the default branch is something like master and there
+	// is also a main branch. It prevents the main track from having commits from multiple git branches.
+	if defaultBranch != "main" && track == "main" && track == refName {
+		return errors.New("cannot push to main track from a non-default branch")
+	}
+	track = resolveTrack(track, defaultBranch, refName)
+
 	// versions of buf prior to --track support emit "unknown flag: --track" when running `buf push --track foo --help`
 
 	// make sure --track is supported
@@ -298,4 +325,16 @@ func checkTrackSupport(ctx context.Context, bufRunner commandRunner) error {
 		return err
 	}
 	return nil
+}
+
+// resolveTrack returns track unless it is
+//    1) set to ${{ github.ref_name }}
+//      AND
+//    2) equal to defaultBranch
+// in which case it returns "main"
+func resolveTrack(track, defaultBranch, refName string) string {
+	if track == defaultBranch && track == refName {
+		return "main"
+	}
+	return track
 }

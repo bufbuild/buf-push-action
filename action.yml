@@ -12,6 +12,10 @@ inputs:
     description: The Input path.
     default: '.'
     required: false
+  default_branch:
+    description: The git branch that gets pushed to the main track on BSR.
+    default: main
+    required: false
   track:
     description: The track to push to.
     default: ${{ github.ref_name }}
@@ -56,7 +60,12 @@ runs:
         BUF_TOKEN: ${{ inputs.buf_token }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
-        "${{ steps.cache-setup.outputs.path }}/buf-push-action" push "${{ inputs.input }}" "${{ inputs.track }}" "${{ github.sha }}"
+        "${{ steps.cache-setup.outputs.path }}/buf-push-action" push \
+          "${{ inputs.input }}" \
+          "${{ inputs.track }}" \
+          "${{ github.sha }}" \
+          "${{ inputs.default-branch }}" \
+          "${{ github.ref_name }}"
     - name: delete track
       if: github.event_name == 'delete' && github.event.ref_type == 'branch'
       id: delete-track
@@ -65,4 +74,8 @@ runs:
         BUF_TOKEN: ${{ inputs.buf_token }}
         GITHUB_TOKEN: ${{ inputs.github_token }}
       run: |
-        "${{ steps.cache-setup.outputs.path }}/buf-push-action" delete-track "${{ inputs.input }}" "${{ inputs.track }}"
+        "${{ steps.cache-setup.outputs.path }}/buf-push-action" delete-track \
+          "${{ inputs.input }}" \
+          "${{ inputs.track }}" \
+          "${{ inputs.default-branch }}" \
+          "${{ github.ref_name }}"
