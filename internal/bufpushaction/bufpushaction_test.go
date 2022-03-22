@@ -232,7 +232,7 @@ func TestDeleteTrack(t *testing.T) {
 	t.Run("main track", func(t *testing.T) {
 		runDeleteTrackTest(t, deleteTrackTest{
 			track:        testMainTrack,
-			expectStdout: []string{"::notice::cannot delete main track"},
+			expectStdout: []string{"::notice::Skipping because the main track can not be deleted from BSR"},
 		})
 	})
 	t.Run("old buf version", func(t *testing.T) {

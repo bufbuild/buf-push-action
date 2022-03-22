@@ -41,6 +41,8 @@ const (
 	githubRepositoryKey = "GITHUB_REPOSITORY"
 )
 
+var errNoTrackSupport = errors.New("The installed version of buf does not support setting the track. Please use buf v1.0.0 or newer.")
+
 // Main is the entrypoint to the buf CLI.
 func Main(name string) {
 	appcmd.Main(context.Background(), NewRootCommand(name))
@@ -73,7 +75,6 @@ func runPush(ctx context.Context, container appflag.Container) error {
 	track := container.Arg(1)
 	currentGitCommit := container.Arg(2)
 
-	// exit early if buf or BUF_TOKEN isn't found
 	if _, err := exec.LookPath("buf"); err != nil {
 		return errors.New(`buf is not installed; please add the "bufbuild/buf-setup-action" step to your job found at https://github.com/bufbuild/buf-setup-action`)
 	}
@@ -163,7 +164,7 @@ func getNameFromConfigFile(ctx context.Context, bucket storage.ReadBucket) (_ st
 
 func deleteTrack(ctx context.Context, track, moduleName string, stdout io.Writer, runner commandRunner) error {
 	if track == "main" {
-		writeWorkflowNotice(stdout, "cannot delete main track")
+		writeWorkflowNotice(stdout, "Skipping because the main track can not be deleted from BSR")
 		return nil
 	}
 	if err := checkTrackSupport(ctx, runner); err != nil {
@@ -179,8 +180,6 @@ func deleteTrack(ctx context.Context, track, moduleName string, stdout io.Writer
 	}
 	return nil
 }
-
-var errNoTrackSupport = errors.New("The installed version of buf does not support setting the track. Please use buf v1.0.0 or newer.")
 
 func push(
 	ctx context.Context,
