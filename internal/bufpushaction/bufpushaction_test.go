@@ -20,10 +20,15 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
+	"github.com/bufbuild/buf/private/pkg/app"
+	"github.com/bufbuild/buf/private/pkg/app/appcmd"
+	"github.com/bufbuild/buf/private/pkg/rpc"
 	gogithub "github.com/google/go-github/v42/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,12 +39,172 @@ const (
 	testGitCommit2         = "beefcafebeefcafebeefcafebeefcafebeefcafe"
 	testBsrCommit          = "01234567890123456789012345678901"
 	testModuleName         = "buf.build/foo/bar"
+	testOwner              = "foo"
+	testRepository         = "bar"
 	testInput              = "path/to/proto"
 	testMainTrack          = "main"
+	testAddress            = "buf.build"
 	testModuleMainTrack    = "buf.build/foo/bar:main"
 	testNonMainTrack       = "non-main"
 	testModuleNonMainTrack = "buf.build/foo/bar:non-main"
 )
+
+type cmdTest struct {
+	subCommand string
+	provider   fakeRegistryProvider
+	config     string
+	env        map[string]string
+	errMsg     string
+	stdout     []string
+}
+
+func runCmdTest(t *testing.T, test cmdTest) {
+	var stdout, stderr bytes.Buffer
+	test.provider.t = t
+	if test.config == "" {
+		test.config = v1Config(testModuleName)
+	}
+	env := test.env
+	if env == nil {
+		env = map[string]string{}
+	}
+	defaultEnv := map[string]string{
+		"INPUT_BUF_TOKEN":      "buf-token",
+		"INPUT_INPUT":          writeConfigFile(t, test.config),
+		"INPUT_TRACK":          testNonMainTrack,
+		"INPUT_DEFAULT_BRANCH": testMainTrack,
+		"GITHUB_REF_NAME":      testMainTrack,
+	}
+	for k, v := range defaultEnv {
+		if _, ok := env[k]; !ok {
+			env[k] = v
+		}
+	}
+	ctx := context.WithValue(context.Background(), registryProviderContextKey, &test.provider)
+	container := app.NewContainer(env, nil, &stdout, &stderr, "test", test.subCommand)
+	command := NewRootCommand("test")
+	err := appcmd.Run(ctx, container, command)
+	assert.Equal(
+		t,
+		strings.TrimSpace(strings.Join(test.stdout, "\n")),
+		strings.TrimSpace(stdout.String()),
+	)
+
+	if test.errMsg != "" {
+		errMsg := fmt.Sprintf("::error::%s", test.errMsg)
+		if assert.Error(t, err) {
+			assert.Contains(t, err.Error(), errMsg)
+		}
+		assert.Contains(t, stderr.String(), errMsg)
+	} else {
+		assert.NoError(t, err)
+		assert.Empty(t, stderr.String())
+	}
+}
+
+func writeConfigFile(t *testing.T, content string) string {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "buf.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0644)
+	require.NoError(t, err)
+	return tmpDir
+}
+
+func TestDeleteTrack(t *testing.T) {
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+	})
+
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+		env: map[string]string{
+			"INPUT_BUF_TOKEN": "",
+		},
+		errMsg: "a buf authentication token was not provided",
+	})
+
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+		env: map[string]string{
+			"INPUT_INPUT": "path/does/not/exist",
+		},
+		errMsg: "path/does/not/exist: does not exist",
+	})
+
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+		env: map[string]string{
+			"INPUT_INPUT": t.TempDir(),
+		},
+		errMsg: "module identity not found in config",
+	})
+
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+		env: map[string]string{
+			"INPUT_INPUT": writeConfigFile(t, "invalid config"),
+		},
+		errMsg: "could not unmarshal as YAML",
+	})
+
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+		env: map[string]string{
+			"INPUT_INPUT": writeConfigFile(t, v1Config("not-a-module")),
+		},
+		errMsg: `module identity "not-a-module" is invalid: must be in the form remote/owner/repository`,
+	})
+
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+		env: map[string]string{
+			"INPUT_TRACK": "",
+		},
+		errMsg: "track not provided",
+	})
+
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+		env: map[string]string{
+			"INPUT_DEFAULT_BRANCH": "",
+		},
+		errMsg: "default_branch not provided",
+	})
+
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+		env: map[string]string{
+			"INPUT_TRACK": testMainTrack,
+		},
+		stdout: []string{
+			"::notice::Skipping because the main track can not be deleted from BSR",
+		},
+	})
+
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+		provider: fakeRegistryProvider{
+			newRepositoryTrackServiceErr: assert.AnError,
+		},
+		errMsg: assert.AnError.Error(),
+	})
+
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+		provider:   fakeRegistryProvider{
+			deleteRepositoryTrackByNameErr: assert.AnError,
+		},
+		errMsg: assert.AnError.Error(),
+	})
+
+	runCmdTest(t, cmdTest{
+		subCommand: "delete-track",
+		provider:   fakeRegistryProvider{
+			deleteRepositoryTrackByNameErr: rpc.NewNotFoundError("an error"),
+		},
+		errMsg: `"buf.build/foo/bar" does not exist`,
+	})
+}
 
 func TestPush(t *testing.T) {
 	t.Run("re-push the current main track head", func(t *testing.T) {
@@ -186,9 +351,17 @@ func TestPush(t *testing.T) {
 			bufRuns: []fakeCommandRunnerRun{
 				trackHelpRun(true),
 				{
-					expectArgs: []string{"beta", "registry", "commit", "get", testModuleNonMainTrack, "--format", "json"},
-					stderr:     fmt.Sprintf("Failure: %q does not exist", testModuleName),
-					err:        assert.AnError,
+					expectArgs: []string{
+						"beta",
+						"registry",
+						"commit",
+						"get",
+						testModuleNonMainTrack,
+						"--format",
+						"json",
+					},
+					stderr: fmt.Sprintf("Failure: %q does not exist", testModuleName),
+					err:    assert.AnError,
 				},
 				{
 					expectArgs: []string{"push", "--track", testNonMainTrack, "--tag", testGitCommit1, testInput},
@@ -214,8 +387,16 @@ func TestPush(t *testing.T) {
 					stderr:     dupContentMessage,
 				},
 				{
-					expectArgs: []string{"beta", "registry", "commit", "get", testModuleNonMainTrack, "--format", "json"},
-					stdout:     buildCommitJSON(t, testBsrCommit),
+					expectArgs: []string{
+						"beta",
+						"registry",
+						"commit",
+						"get",
+						testModuleNonMainTrack,
+						"--format",
+						"json",
+					},
+					stdout: buildCommitJSON(t, testBsrCommit),
 				},
 			},
 			compareCommitRuns: []fakeCompareCommits{
@@ -257,66 +438,6 @@ func TestPush(t *testing.T) {
 				fmt.Sprintf("::set-output name=commit::%s", testBsrCommit),
 				fmt.Sprintf("::set-output name=commit_url::%s", bsrCommitURL(testModuleName, testBsrCommit)),
 			},
-		})
-	})
-}
-
-func TestDeleteTrack(t *testing.T) {
-	t.Run("main track", func(t *testing.T) {
-		runDeleteTrackTest(t, deleteTrackTest{
-			track:        testMainTrack,
-			expectStdout: []string{"::notice::Skipping because the main track can not be deleted from BSR"},
-		})
-	})
-	t.Run("old buf version", func(t *testing.T) {
-		runDeleteTrackTest(t, deleteTrackTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(false),
-			},
-			errorAssertion: func(err error) {
-				assert.Equal(t, errNoTrackSupport, err)
-			},
-		})
-	})
-	t.Run("success", func(t *testing.T) {
-		runDeleteTrackTest(t, deleteTrackTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				{
-					expectArgs: []string{"beta", "registry", "track", "delete", testModuleNonMainTrack, "--force"},
-				},
-			},
-		})
-	})
-	t.Run("error", func(t *testing.T) {
-		runDeleteTrackTest(t, deleteTrackTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				{
-					expectArgs: []string{"beta", "registry", "track", "delete", testModuleNonMainTrack, "--force"},
-					stderr:     "stderr message",
-					err:        assert.AnError,
-				},
-			},
-			errorAssertion: func(err error) {
-				assert.EqualError(t, err, "stderr message")
-			},
-		})
-	})
-	t.Run("emit stderr on success", func(t *testing.T) {
-		runDeleteTrackTest(t, deleteTrackTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				{
-					expectArgs: []string{"beta", "registry", "track", "delete", testModuleNonMainTrack, "--force"},
-					stderr:     "stderr message",
-				},
-			},
-			expectStdout: []string{"::notice::stderr message"},
 		})
 	})
 }
@@ -380,24 +501,6 @@ type deleteTrackTest struct {
 	errorAssertion func(err error)
 }
 
-func runDeleteTrackTest(t *testing.T, dt deleteTrackTest) {
-	ctx := context.Background()
-	var stdout bytes.Buffer
-	cmdRunner := fakeCommandRunner{
-		t:    t,
-		runs: dt.bufRuns,
-	}
-	err := deleteTrack(ctx, dt.track, testModuleName, "main", "main", &stdout, &cmdRunner)
-	if dt.errorAssertion != nil {
-		dt.errorAssertion(err)
-	} else {
-		assert.NoError(t, err)
-	}
-	expectStdout := strings.Join(dt.expectStdout, "\n")
-	assert.Equal(t, expectStdout, strings.TrimSpace(stdout.String()), "stdout")
-	assert.Empty(t, cmdRunner.runs, "missed bufRunner expectations")
-}
-
 func trackHelpRun(ok bool) fakeCommandRunnerRun {
 	args := []string{"push", "--track", "anytrack", "--help"}
 	if ok {
@@ -446,4 +549,14 @@ func compareCommitsRun(base, head string, status github.CompareCommitsStatus) fa
 
 func bsrCommitURL(moduleName, commit string) string {
 	return fmt.Sprintf("https://%s/tree/%s", moduleName, commit)
+}
+
+func v1Config(name string) string {
+	return fmt.Sprintf(
+		`
+version: v1
+name: %s
+`,
+		name,
+	)
 }

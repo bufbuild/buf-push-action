@@ -26,11 +26,17 @@ import (
 	"time"
 
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
+	"github.com/bufbuild/buf/private/buf/bufcli"
 	"github.com/bufbuild/buf/private/bufpkg/bufconfig"
+	"github.com/bufbuild/buf/private/bufpkg/bufmodule/bufmoduleref"
+	"github.com/bufbuild/buf/private/gen/proto/apiclient/buf/alpha/registry/v1alpha1/registryv1alpha1apiclient"
+	"github.com/bufbuild/buf/private/pkg/app"
 	"github.com/bufbuild/buf/private/pkg/app/appcmd"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
+	"github.com/bufbuild/buf/private/pkg/rpc"
 	"github.com/bufbuild/buf/private/pkg/storage"
 	"github.com/bufbuild/buf/private/pkg/storage/storageos"
+	"github.com/sethvargo/go-githubactions"
 	"github.com/spf13/cobra"
 )
 
@@ -38,9 +44,27 @@ const (
 	bufTokenKey         = "BUF_TOKEN"
 	githubTokenKey      = "GITHUB_TOKEN"
 	githubRepositoryKey = "GITHUB_REPOSITORY"
+	githubRefNameKey    = "GITHUB_REF_NAME"
 )
 
-var errNoTrackSupport = errors.New("The installed version of buf does not support setting the track. Please use buf v1.0.0 or newer.")
+const (
+	bufTokenInputID      = "buf_token"
+	defaultBranchInputID = "default_branch"
+	githubTokenInputID   = "github_token"
+	inputInputID         = "input"
+	trackInputID         = "track"
+)
+
+type contextKey int
+
+const (
+	actionContextKey contextKey = iota + 1
+	registryProviderContextKey
+)
+
+var errNoTrackSupport = errors.New(
+	"The installed version of buf does not support setting the track. Please use buf v1.0.0 or newer.",
+)
 
 // Main is the entrypoint to the buf CLI.
 func Main(name string) {
@@ -60,10 +84,9 @@ func NewRootCommand(name string) *appcmd.Command {
 				Run:   builder.NewRunFunc(runPush, interceptErrorForGithubAction),
 			},
 			{
-				Use:   "delete-track <input> <track> <default-branch> <ref-name>",
+				Use:   "delete-track",
 				Short: "delete a track on BSR",
-				Args:  cobra.ExactArgs(4),
-				Run:   builder.NewRunFunc(runDeleteTrack, interceptErrorForGithubAction),
+				Run:   builder.NewRunFunc(deleteTrack, interceptErrorForGithubAction),
 			},
 		},
 	}
@@ -77,7 +100,9 @@ func runPush(ctx context.Context, container appflag.Container) error {
 	refName := container.Arg(4)
 
 	if _, err := exec.LookPath("buf"); err != nil {
-		return errors.New(`buf is not installed; please add the "bufbuild/buf-setup-action" step to your job found at https://github.com/bufbuild/buf-setup-action`)
+		return errors.New(
+			`buf is not installed; please add the "bufbuild/buf-setup-action" step to your job found at https://github.com/bufbuild/buf-setup-action`,
+		)
 	}
 	if container.Env(bufTokenKey) == "" {
 		return errors.New("a buf authentication token was not provided")
@@ -118,24 +143,64 @@ func runPush(ctx context.Context, container appflag.Container) error {
 		})
 }
 
-func runDeleteTrack(ctx context.Context, container appflag.Container) error {
-	input := container.Arg(0)
-	track := container.Arg(1)
-	defaultBranch := container.Arg(2)
-	refName := container.Arg(3)
-
+func deleteTrack(ctx context.Context, container appflag.Container) error {
+	action, ok := ctx.Value(actionContextKey).(*githubactions.Action)
+	if !ok {
+		return errors.New("action not found in context")
+	}
+	registryProvider, ok := ctx.Value(registryProviderContextKey).(registryv1alpha1apiclient.Provider)
+	if !ok {
+		return errors.New("registry provider not found in context")
+	}
+	input := action.GetInput(inputInputID)
 	bucket, err := storageos.NewProvider().NewReadWriteBucket(input)
 	if err != nil {
-		return fmt.Errorf("config file not found: %s", input)
+		return err
 	}
-	moduleName, err := getNameFromConfigFile(ctx, bucket)
+	config, err := bufconfig.GetConfigForBucket(ctx, bucket)
 	if err != nil {
-		return fmt.Errorf("name not found in  %s", input)
+		return err
 	}
-	return deleteTrack(ctx, track, moduleName, defaultBranch, refName, container.Stdout(), &bufRunner{
-		bufToken: container.Env(bufTokenKey),
-		path:     container.Env("PATH"),
-	})
+	if config.ModuleIdentity == nil {
+		return errors.New("module identity not found in config")
+	}
+	moduleName := config.ModuleIdentity.IdentityString()
+	moduleReference, err := bufmoduleref.ModuleReferenceForString(moduleName)
+	if err != nil {
+		return err
+	}
+	track := action.GetInput(trackInputID)
+	if track == "" {
+		return fmt.Errorf("track not provided")
+	}
+	defaultBranch := action.GetInput(defaultBranchInputID)
+	if defaultBranch == "" {
+		return fmt.Errorf("default_branch not provided")
+	}
+	refName := container.Env(githubRefNameKey)
+	track = resolveTrack(track, defaultBranch, refName)
+	if track == "main" {
+		action.Noticef("Skipping because the main track can not be deleted from BSR")
+		return nil
+	}
+	repositoryTrackService, err := registryProvider.NewRepositoryTrackService(ctx, moduleReference.Remote())
+	if err != nil {
+		return err
+	}
+	owner := moduleReference.Owner()
+	repository := moduleReference.Repository()
+	if err := repositoryTrackService.DeleteRepositoryTrackByName(
+		ctx,
+		owner,
+		repository,
+		track,
+	); err != nil {
+		if rpc.GetErrorCode(err) == rpc.ErrorCodeNotFound {
+			return bufcli.NewModuleReferenceNotFoundError(moduleReference)
+		}
+		return err
+	}
+	return nil
 }
 
 // interceptErrorForGithubAction intercepts errors and wraps them in formatting required for an error to be shown in
@@ -143,12 +208,31 @@ func runDeleteTrack(ctx context.Context, container appflag.Container) error {
 func interceptErrorForGithubAction(
 	next func(context.Context, appflag.Container) error,
 ) func(context.Context, appflag.Container) error {
-	return func(ctx context.Context, container appflag.Container) error {
-		err := next(ctx, container)
-		if err == nil {
-			return nil
+	return func(ctx context.Context, container appflag.Container) (retErr error) {
+		defer func() {
+			if retErr != nil {
+				retErr = fmt.Errorf("::error::%v", retErr)
+			}
+		}()
+		action := newAction(container)
+		bufToken := action.GetInput(bufTokenInputID)
+		if bufToken == "" {
+			return errors.New("a buf authentication token was not provided")
 		}
-		return fmt.Errorf("::error::%v", err)
+		container = newContainerWithEnvOverrides(container, map[string]string{
+			bufTokenKey: bufToken,
+		})
+		registryProvider, ok := ctx.Value(registryProviderContextKey).(registryv1alpha1apiclient.Provider)
+		if !ok {
+			var err error
+			registryProvider, err = bufcli.NewRegistryProvider(ctx, container)
+			if err != nil {
+				return err
+			}
+			ctx = context.WithValue(ctx, registryProviderContextKey, registryProvider)
+		}
+		ctx = context.WithValue(ctx, actionContextKey, action)
+		return next(ctx, container)
 	}
 }
 
@@ -158,33 +242,6 @@ func getNameFromConfigFile(ctx context.Context, bucket storage.ReadBucket) (stri
 		return "", err
 	}
 	return config.ModuleIdentity.IdentityString(), nil
-}
-
-func deleteTrack(
-	ctx context.Context,
-	track, moduleName,
-	defaultBranch,
-	refName string,
-	stdout io.Writer,
-	runner commandRunner,
-) error {
-	track = resolveTrack(track, defaultBranch, refName)
-	if track == "main" {
-		writeWorkflowNotice(stdout, "Skipping because the main track can not be deleted from BSR")
-		return nil
-	}
-	if err := checkTrackSupport(ctx, runner); err != nil {
-		return err
-	}
-	trackRef := fmt.Sprintf("%s:%s", moduleName, track)
-	_, runStderr, err := runner.Run(ctx, "beta", "registry", "track", "delete", trackRef, "--force")
-	if err != nil {
-		return errors.New(runStderr)
-	}
-	if len(runStderr) > 0 {
-		writeWorkflowNotice(stdout, runStderr)
-	}
-	return nil
 }
 
 func push(
@@ -333,8 +390,16 @@ func checkTrackSupport(ctx context.Context, bufRunner commandRunner) error {
 //    2) equal to defaultBranch
 // in which case it returns "main"
 func resolveTrack(track, defaultBranch, refName string) string {
-	if track == defaultBranch && track == refName {
+	if track == defaultBranch && (track == refName || refName == "") {
 		return "main"
 	}
 	return track
+}
+
+// newAction returns an action using the container's env and stdout.
+func newAction(container app.EnvStdoutContainer) *githubactions.Action {
+	return githubactions.New(
+		githubactions.WithGetenv(container.Env),
+		githubactions.WithWriter(container.Stdout()),
+	)
 }
