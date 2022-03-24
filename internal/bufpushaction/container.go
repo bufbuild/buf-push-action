@@ -1,3 +1,17 @@
+// Copyright 2020-2022 Buf Technologies, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package bufpushaction
 
 import (
@@ -6,8 +20,6 @@ import (
 	"github.com/bufbuild/buf/private/pkg/app/applog"
 	"github.com/bufbuild/buf/private/pkg/app/appname"
 	"github.com/bufbuild/buf/private/pkg/app/appverbose"
-	"github.com/bufbuild/buf/private/pkg/verbose"
-	"go.uber.org/zap"
 )
 
 // appflagContainer implements appflag.Container.
@@ -17,48 +29,32 @@ type appflagContainer struct {
 	app.StdoutContainer
 	app.StderrContainer
 	app.ArgContainer
-	nameContainer    appname.Container
-	logContainer     applog.Container
-	verboseContainer appverbose.Container
-}
-
-func (c *appflagContainer) AppName() string {
-	return c.nameContainer.AppName()
-}
-
-func (c *appflagContainer) ConfigDirPath() string {
-	return c.nameContainer.ConfigDirPath()
-}
-
-func (c *appflagContainer) CacheDirPath() string {
-	return c.nameContainer.CacheDirPath()
-}
-
-func (c *appflagContainer) DataDirPath() string {
-	return c.nameContainer.DataDirPath()
-}
-
-func (c *appflagContainer) Port() (uint16, error) {
-	return c.nameContainer.Port()
-}
-
-func (c *appflagContainer) Logger() *zap.Logger {
-	return c.logContainer.Logger()
-}
-
-func (c *appflagContainer) VerbosePrinter() verbose.Printer {
-	return c.verboseContainer.VerbosePrinter()
+	appnameContainer
+	applogContainer
+	appverboseContainer
 }
 
 func newContainerWithEnvOverrides(container appflag.Container, env map[string]string) appflag.Container {
 	return &appflagContainer{
-		EnvContainer:     app.NewEnvContainerWithOverrides(container, env),
-		StdinContainer:   container,
-		StdoutContainer:  container,
-		StderrContainer:  container,
-		ArgContainer:     container,
-		nameContainer:    container,
-		logContainer:     container,
-		verboseContainer: container,
+		EnvContainer:        app.NewEnvContainerWithOverrides(container, env),
+		StdinContainer:      container,
+		StdoutContainer:     container,
+		StderrContainer:     container,
+		ArgContainer:        container,
+		appnameContainer:    container,
+		applogContainer:     container,
+		appverboseContainer: container,
 	}
+}
+
+type appnameContainer interface {
+	appname.Container
+}
+
+type applogContainer interface {
+	applog.Container
+}
+
+type appverboseContainer interface {
+	appverbose.Container
 }
