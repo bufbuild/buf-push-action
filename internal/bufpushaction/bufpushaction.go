@@ -16,7 +16,6 @@ package bufpushaction
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -24,16 +23,10 @@ import (
 
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
 	"github.com/bufbuild/buf/private/buf/bufcli"
-	"github.com/bufbuild/buf/private/bufpkg/bufconfig"
-	"github.com/bufbuild/buf/private/bufpkg/bufmodule"
-	"github.com/bufbuild/buf/private/bufpkg/bufmodule/bufmoduleref"
 	"github.com/bufbuild/buf/private/gen/proto/apiclient/buf/alpha/registry/v1alpha1/registryv1alpha1apiclient"
 	"github.com/bufbuild/buf/private/pkg/app"
 	"github.com/bufbuild/buf/private/pkg/app/appcmd"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
-	"github.com/bufbuild/buf/private/pkg/command"
-	"github.com/bufbuild/buf/private/pkg/rpc"
-	"github.com/bufbuild/buf/private/pkg/storage/storageos"
 	"github.com/sethvargo/go-githubactions"
 )
 
@@ -64,194 +57,19 @@ const (
 
 // Main is the entrypoint to the buf CLI.
 func Main(name string) {
-	appcmd.Main(context.Background(), NewRootCommand(name))
+	appcmd.Main(context.Background(), newRootCommand(name))
 }
 
-func NewRootCommand(name string) *appcmd.Command {
+func newRootCommand(name string) *appcmd.Command {
 	builder := appflag.NewBuilder(name, appflag.BuilderWithTimeout(120*time.Second))
 	return &appcmd.Command{
 		Use:   name,
 		Short: "helper for the GitHub Action buf-push-action",
 		SubCommands: []*appcmd.Command{
-			{
-				Use:   "push <input> <track> <git-commit-hash> <default-branch> <ref-name>",
-				Short: "push to BSR",
-				Run:   builder.NewRunFunc(push, actionInterceptor, githubClientInterceptor),
-			},
-			{
-				Use:   "delete-track",
-				Short: "delete a track on BSR",
-				Run:   builder.NewRunFunc(deleteTrack, actionInterceptor),
-			},
+			newDeleteTrackCommand("delete-track", builder),
+			newPushCommand("push", builder),
 		},
 	}
-}
-
-func deleteTrack(ctx context.Context, container appflag.Container) error {
-	action, ok := ctx.Value(actionContextKey).(*githubactions.Action)
-	if !ok {
-		return errors.New("action not found in context")
-	}
-	registryProvider, ok := ctx.Value(registryProviderContextKey).(registryv1alpha1apiclient.Provider)
-	if !ok {
-		return errors.New("registry provider not found in context")
-	}
-	input := action.GetInput(inputInputID)
-	bucket, err := storageos.NewProvider().NewReadWriteBucket(input)
-	if err != nil {
-		return err
-	}
-	config, err := bufconfig.GetConfigForBucket(ctx, bucket)
-	if err != nil {
-		return err
-	}
-	if config.ModuleIdentity == nil {
-		return errors.New("module identity not found in config")
-	}
-	moduleReference, err := bufmoduleref.ModuleReferenceForString(config.ModuleIdentity.IdentityString())
-	if err != nil {
-		return err
-	}
-	track := action.GetInput(trackInputID)
-	if track == "" {
-		return fmt.Errorf("track not provided")
-	}
-	defaultBranch := action.GetInput(defaultBranchInputID)
-	if defaultBranch == "" {
-		return fmt.Errorf("default_branch not provided")
-	}
-	refName := container.Env(githubRefNameKey)
-	track = resolveTrack(track, defaultBranch, refName)
-	if track == "main" {
-		action.Noticef("Skipping because the main track can not be deleted from BSR")
-		return nil
-	}
-	repositoryTrackService, err := registryProvider.NewRepositoryTrackService(ctx, moduleReference.Remote())
-	if err != nil {
-		return err
-	}
-	owner := moduleReference.Owner()
-	repository := moduleReference.Repository()
-	if err := repositoryTrackService.DeleteRepositoryTrackByName(
-		ctx,
-		owner,
-		repository,
-		track,
-	); err != nil {
-		if rpc.GetErrorCode(err) == rpc.ErrorCodeNotFound {
-			return bufcli.NewModuleReferenceNotFoundError(moduleReference)
-		}
-		return err
-	}
-	return nil
-}
-
-func push(ctx context.Context, container appflag.Container) error {
-	action, ok := ctx.Value(actionContextKey).(*githubactions.Action)
-	if !ok {
-		return errors.New("action not found in context")
-	}
-	input := action.GetInput(inputInputID)
-	storageosProvider := bufcli.NewStorageosProvider(false)
-	runner := command.NewRunner()
-	module, moduleIdentity, err := bufcli.ReadModuleWithWorkspacesDisabled(
-		ctx,
-		container,
-		storageosProvider,
-		runner,
-		input,
-	)
-	if err != nil {
-		return err
-	}
-	protoModule, err := bufmodule.ModuleToProtoModule(ctx, module)
-	if err != nil {
-		return err
-	}
-	track := action.GetInput(trackInputID)
-	if track == "" {
-		return fmt.Errorf("track not provided")
-	}
-	defaultBranch := action.GetInput(defaultBranchInputID)
-	if defaultBranch == "" {
-		return fmt.Errorf("default_branch not provided")
-	}
-	refName := container.Env(githubRefNameKey)
-	// Error when track is main and not overridden but the default branch is not main.
-	// This is for situations where the default branch is something like master and there
-	// is also a main branch. It prevents the main track from having commits from multiple git branches.
-	if defaultBranch != "main" && track == "main" && track == refName {
-		return errors.New("cannot push to main track from a non-default branch")
-	}
-	track = resolveTrack(track, defaultBranch, refName)
-	registryProvider, ok := ctx.Value(registryProviderContextKey).(registryv1alpha1apiclient.Provider)
-	if !ok {
-		return errors.New("registry provider not found in context")
-	}
-	tags, err := getTags(ctx, registryProvider, moduleIdentity, track)
-	if err != nil {
-		return err
-	}
-	githubClient, ok := ctx.Value(githubClientContextKey).(github.Client)
-	if !ok {
-		return errors.New("github client not found in context")
-	}
-	currentGitCommit := container.Env(githubSHAKey)
-	if currentGitCommit == "" {
-		return errors.New("current git commit not found in environment")
-	}
-	for _, tag := range tags {
-		var status github.CompareCommitsStatus
-		status, err = githubClient.CompareCommits(ctx, tag, currentGitCommit)
-		if err != nil {
-			if github.IsNotFoundError(err) {
-				continue
-			}
-			return err
-		}
-		switch status {
-		case github.CompareCommitsStatusIdentical:
-			action.Noticef("Skipping because the current git commit is already the head of track %s", track)
-			return nil
-		case github.CompareCommitsStatusBehind:
-			action.Noticef("Skipping because the current git commit is behind the head of track %s", track)
-			return nil
-		case github.CompareCommitsStatusDiverged:
-			action.Noticef("The current git commit is diverged from the head of track %s", track)
-		case github.CompareCommitsStatusAhead:
-		default:
-			return fmt.Errorf("unexpected status: %s", status)
-		}
-	}
-	remote := moduleIdentity.Remote()
-	pushService, err := registryProvider.NewPushService(ctx, remote)
-	if err != nil {
-		return err
-	}
-	localModulePin, err := pushService.Push(
-		ctx,
-		moduleIdentity.Owner(),
-		moduleIdentity.Repository(),
-		"",
-		protoModule,
-		[]string{currentGitCommit},
-		[]string{track},
-	)
-	if err != nil {
-		if rpc.GetErrorCode(err) == rpc.ErrorCodeAlreadyExists {
-			action.Noticef("The latest commit has the same content; not creating a new commit.")
-		} else {
-			return err
-		}
-	}
-
-	action.SetOutput(commitOutputID, localModulePin.Commit)
-	action.SetOutput(commitURLOutputID, fmt.Sprintf(
-		"https://%s/tree/%s",
-		moduleIdentity.IdentityString(),
-		localModulePin.Commit,
-	))
-	return nil
 }
 
 func actionInterceptor(
@@ -284,6 +102,7 @@ func actionInterceptor(
 	}
 }
 
+// githubClientInterceptor adds a github client to ctx.
 func githubClientInterceptor(
 	next func(context.Context, appflag.Container) error,
 ) func(context.Context, appflag.Container) error {
@@ -313,39 +132,6 @@ func githubClientInterceptor(
 		}
 		return next(ctx, container)
 	}
-}
-
-func getTags(
-	ctx context.Context,
-	registryProvider registryv1alpha1apiclient.Provider,
-	moduleIdentity bufmoduleref.ModuleIdentity,
-	track string,
-) ([]string, error) {
-	repositoryCommitService, err := registryProvider.NewRepositoryCommitService(ctx, moduleIdentity.Remote())
-	if err != nil {
-		return nil, err
-	}
-	repositoryCommit, err := repositoryCommitService.GetRepositoryCommitByReference(
-		ctx,
-		moduleIdentity.Owner(),
-		moduleIdentity.Repository(),
-		track,
-	)
-	if err != nil {
-		return nil, err
-	}
-	tags := make([]string, 0, len(repositoryCommit.Tags))
-	for _, tag := range repositoryCommit.Tags {
-		tagName := tag.Name
-		if len(tagName) != 40 {
-			continue
-		}
-		if _, err := hex.DecodeString(tagName); err != nil {
-			continue
-		}
-		tags = append(tags, tagName)
-	}
-	return tags, nil
 }
 
 // resolveTrack returns track unless it is

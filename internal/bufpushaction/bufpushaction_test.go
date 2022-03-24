@@ -451,7 +451,7 @@ func runCmdTest(t *testing.T, test cmdTest) {
 	ctx := context.WithValue(context.Background(), registryProviderContextKey, &test.provider)
 	ctx = context.WithValue(ctx, githubClientContextKey, &test.githubClient)
 	container := app.NewContainer(env, nil, &stdout, &stderr, "test", test.subCommand)
-	command := NewRootCommand("test")
+	command := newRootCommand("test")
 	err := appcmd.Run(ctx, container, command)
 	if test.errMsg != "" {
 		errMsg := fmt.Sprintf("::error::%s", test.errMsg)
