@@ -86,7 +86,7 @@ func push(ctx context.Context, container appflag.Container) error {
 	if err != nil {
 		return err
 	}
-	githubClient, ok := ctx.Value(githubClientContextKey).(github.Client)
+	ghClient, ok := ctx.Value(githubClientContextKey).(githubClient)
 	if !ok {
 		return errors.New("github client not found in context")
 	}
@@ -96,7 +96,7 @@ func push(ctx context.Context, container appflag.Container) error {
 	}
 	for _, tag := range tags {
 		var status github.CompareCommitsStatus
-		status, err = githubClient.CompareCommits(ctx, tag, currentGitCommit)
+		status, err = ghClient.CompareCommits(ctx, tag, currentGitCommit)
 		if err != nil {
 			if github.IsNotFoundError(err) {
 				continue

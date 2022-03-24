@@ -55,6 +55,10 @@ const (
 	githubClientContextKey
 )
 
+type githubClient interface {
+	CompareCommits(ctx context.Context, base, head string) (github.CompareCommitsStatus, error)
+}
+
 // Main is the entrypoint to the buf CLI.
 func Main(name string) {
 	appcmd.Main(context.Background(), newRootCommand(name))
