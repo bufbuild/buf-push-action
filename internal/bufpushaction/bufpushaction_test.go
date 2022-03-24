@@ -46,7 +46,6 @@ const (
 )
 
 type cmdTest struct {
-	subCommand   string
 	provider     fakeRegistryProvider
 	config       string
 	env          map[string]string
@@ -56,353 +55,337 @@ type cmdTest struct {
 	githubClient fakeGithubClient
 }
 
-func TestDeleteTrack(t *testing.T) {
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-	})
-
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-		env: map[string]string{
-			"INPUT_BUF_TOKEN": "",
-		},
-		errMsg: "a buf authentication token was not provided",
-	})
-
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-		env: map[string]string{
-			"INPUT_INPUT": "path/does/not/exist",
-		},
-		errMsg: "path/does/not/exist: does not exist",
-	})
-
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-		env: map[string]string{
-			"INPUT_INPUT": t.TempDir(),
-		},
-		errMsg: "module identity not found in config",
-	})
-
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-		env: map[string]string{
-			"INPUT_INPUT": writeConfigFile(t, "invalid config"),
-		},
-		errMsg: "could not unmarshal as YAML",
-	})
-
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-		env: map[string]string{
-			"INPUT_INPUT": writeConfigFile(t, v1Config("not-a-module")),
-		},
-		errMsg: `module identity "not-a-module" is invalid: must be in the form remote/owner/repository`,
-	})
-
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-		env: map[string]string{
-			"INPUT_TRACK": "",
-		},
-		errMsg: "track not provided",
-	})
-
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-		env: map[string]string{
-			"INPUT_DEFAULT_BRANCH": "",
-		},
-		errMsg: "default_branch not provided",
-	})
-
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-		env: map[string]string{
-			"INPUT_TRACK": testMainTrack,
-		},
-		stdout: []string{
-			"::notice::Skipping because the main track can not be deleted from BSR",
-		},
-	})
-
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-		provider: fakeRegistryProvider{
-			newRepositoryTrackServiceErr: assert.AnError,
-		},
-		errMsg: assert.AnError.Error(),
-	})
-
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-		provider: fakeRegistryProvider{
-			deleteRepositoryTrackByNameErr: assert.AnError,
-		},
-		errMsg: assert.AnError.Error(),
-	})
-
-	runCmdTest(t, cmdTest{
-		subCommand: "delete-track",
-		provider: fakeRegistryProvider{
-			deleteRepositoryTrackByNameErr: rpc.NewNotFoundError("an error"),
-		},
-		errMsg: `"buf.build/foo/bar" does not exist`,
-	})
+func buildEnvMap(maps ...map[string]string) map[string]string {
+	mp := map[string]string{}
+	for _, m := range maps {
+		for k, v := range m {
+			mp[k] = v
+		}
+	}
+	return mp
 }
 
-func TestPush(t *testing.T) {
+func TestCommand(t *testing.T) {
 	runCmdTest(t, cmdTest{
-		subCommand: "push",
 		env: map[string]string{
+			bufTokenInput: "buf-token",
+		},
+	})
+
+	t.Run("delete", func(t *testing.T) {
+		envDeleteBranch := map[string]string{
+			githubEventNameKey: githubEventTypeDelete,
+			githubRefTypeKey:   githubRefTypeBranch,
+		}
+
+		runCmdTest(t, cmdTest{
+			env: envDeleteBranch,
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envDeleteBranch, map[string]string{
+				githubRefTypeKey: "tag",
+			}),
+			stdout: []string{
+				`::notice::Skipping because "delete" events are not supported with "tag" references`,
+			},
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envDeleteBranch, map[string]string{
+				"INPUT_BUF_TOKEN": "",
+			}),
+			errMsg: "a buf authentication token was not provided",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envDeleteBranch, map[string]string{
+				"INPUT_INPUT": "path/does/not/exist",
+			}),
+			errMsg: "path/does/not/exist: does not exist",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envDeleteBranch, map[string]string{
+				"INPUT_INPUT": t.TempDir(),
+			}),
+			errMsg: "module identity not found in config",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envDeleteBranch, map[string]string{
+				"INPUT_INPUT": writeConfigFile(t, "invalid config"),
+			}),
+			errMsg: "could not unmarshal as YAML",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envDeleteBranch, map[string]string{
+				"INPUT_INPUT": writeConfigFile(t, v1Config("not-a-module")),
+			}),
+			errMsg: `module identity "not-a-module" is invalid: must be in the form remote/owner/repository`,
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envDeleteBranch, map[string]string{
+				"INPUT_TRACK": "",
+			}),
+			errMsg: "track not provided",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envDeleteBranch, map[string]string{
+				"INPUT_DEFAULT_BRANCH": "",
+			}),
+			errMsg: "default_branch not provided",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envDeleteBranch, map[string]string{
+				"INPUT_TRACK": testMainTrack,
+			}),
+			stdout: []string{
+				"::notice::Skipping because the main track can not be deleted from BSR",
+			},
+		})
+
+		runCmdTest(t, cmdTest{
+			env: envDeleteBranch,
+			provider: fakeRegistryProvider{
+				newRepositoryTrackServiceErr: assert.AnError,
+			},
+			errMsg: assert.AnError.Error(),
+		})
+
+		runCmdTest(t, cmdTest{
+			env: envDeleteBranch,
+			provider: fakeRegistryProvider{
+				deleteRepositoryTrackByNameErr: assert.AnError,
+			},
+			errMsg: assert.AnError.Error(),
+		})
+
+		runCmdTest(t, cmdTest{
+			env: envDeleteBranch,
+			provider: fakeRegistryProvider{
+				deleteRepositoryTrackByNameErr: rpc.NewNotFoundError("an error"),
+			},
+			errMsg: `"buf.build/foo/bar" does not exist`,
+		})
+	})
+
+	t.Run("push", func(t *testing.T) {
+		envPushBranch := map[string]string{
+			githubEventNameKey: githubEventTypePush,
+			githubRefTypeKey:   githubRefTypeBranch,
+		}
+		envInputSuccess := map[string]string{
 			"INPUT_INPUT": "./testdata/success",
-		},
-		outputs: map[string]string{
-			"commit":     testBsrCommit,
-			"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
-		},
-	})
+		}
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "path/does/not/exist",
-		},
-		errMsg: "path/does/not/exist: does not exist",
-	})
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			outputs: map[string]string{
+				"commit":     testBsrCommit,
+				"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+			},
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		errMsg:     "module has no files",
-	})
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, map[string]string{
+				"INPUT_INPUT": "path/does/not/exist",
+			}),
+			errMsg: "path/does/not/exist: does not exist",
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-			"INPUT_TRACK": "",
-		},
-		errMsg: "track not provided",
-	})
+		runCmdTest(t, cmdTest{
+			env:    envPushBranch,
+			errMsg: "module has no files",
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT":          "./testdata/success",
-			"INPUT_DEFAULT_BRANCH": "",
-		},
-		errMsg: "default_branch not provided",
-	})
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess, map[string]string{
+				"INPUT_TRACK": "",
+			}),
+			errMsg: "track not provided",
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT":          "./testdata/success",
-			"INPUT_DEFAULT_BRANCH": testNonMainTrack,
-			"INPUT_TRACK":          testMainTrack,
-			githubRefNameKey:       testMainTrack,
-		},
-		errMsg: "cannot push to main track from a non-default branch",
-	})
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess, map[string]string{
+				"INPUT_DEFAULT_BRANCH": "",
+			}),
+			errMsg: "default_branch not provided",
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		provider: fakeRegistryProvider{
-			newRepositoryCommitServiceErr: assert.AnError,
-		},
-		errMsg: assert.AnError.Error(),
-	})
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess, map[string]string{
+				"INPUT_DEFAULT_BRANCH": testNonMainTrack,
+				"INPUT_TRACK":          testMainTrack,
+				githubRefNameKey:       testMainTrack,
+			}),
+			errMsg: "cannot push to main track from a non-default branch",
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		provider: fakeRegistryProvider{
-			getRepositoryCommitByReferenceErr: assert.AnError,
-		},
-		errMsg: assert.AnError.Error(),
-	})
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				newRepositoryCommitServiceErr: assert.AnError,
+			},
+			errMsg: assert.AnError.Error(),
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		provider: fakeRegistryProvider{
-			headTags: []string{"some", "other", "tags", strings.Repeat("z", 40)},
-		},
-		outputs: map[string]string{
-			"commit":     testBsrCommit,
-			"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
-		},
-	})
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				getRepositoryCommitByReferenceErr: assert.AnError,
+			},
+			errMsg: assert.AnError.Error(),
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-			githubSHAKey:  "",
-		},
-		errMsg: "current git commit not found in environment",
-	})
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				headTags: []string{"some", "other", "tags", strings.Repeat("z", 40)},
+			},
+			outputs: map[string]string{
+				"commit":     testBsrCommit,
+				"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+			},
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		githubClient: fakeGithubClient{
-			fakeCompareCommits: []fakeCompareCommits{
-				{
-					expectBase: testGitCommit1,
-					expectHead: testGitCommit2,
-					err:        githubNotFoundErr(),
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess, map[string]string{
+				githubSHAKey: "",
+			}),
+			errMsg: "current git commit not found in environment",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						err:        githubNotFoundErr(),
+					},
 				},
 			},
-		},
-		outputs: map[string]string{
-			"commit":     testBsrCommit,
-			"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
-		},
-	})
+			outputs: map[string]string{
+				"commit":     testBsrCommit,
+				"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+			},
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		githubClient: fakeGithubClient{
-			fakeCompareCommits: []fakeCompareCommits{
-				{
-					expectBase: testGitCommit1,
-					expectHead: testGitCommit2,
-					err:        assert.AnError,
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						err:        assert.AnError,
+					},
 				},
 			},
-		},
-		errMsg: assert.AnError.Error(),
-	})
+			errMsg: assert.AnError.Error(),
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		githubClient: fakeGithubClient{
-			fakeCompareCommits: []fakeCompareCommits{
-				{
-					expectBase: testGitCommit1,
-					expectHead: testGitCommit2,
-					status:     github.CompareCommitsStatusIdentical,
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						status:     github.CompareCommitsStatusIdentical,
+					},
 				},
 			},
-		},
-		stdout: []string{
-			"::notice::Skipping because the current git commit is already the head of track non-main",
-		},
-	})
+			stdout: []string{
+				"::notice::Skipping because the current git commit is already the head of track non-main",
+			},
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		githubClient: fakeGithubClient{
-			fakeCompareCommits: []fakeCompareCommits{
-				{
-					expectBase: testGitCommit1,
-					expectHead: testGitCommit2,
-					status:     github.CompareCommitsStatusBehind,
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						status:     github.CompareCommitsStatusBehind,
+					},
 				},
 			},
-		},
-		stdout: []string{
-			"::notice::Skipping because the current git commit is behind the head of track non-main",
-		},
-	})
+			stdout: []string{
+				"::notice::Skipping because the current git commit is behind the head of track non-main",
+			},
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		githubClient: fakeGithubClient{
-			fakeCompareCommits: []fakeCompareCommits{
-				{
-					expectBase: testGitCommit1,
-					expectHead: testGitCommit2,
-					status:     github.CompareCommitsStatusDiverged,
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						status:     github.CompareCommitsStatusDiverged,
+					},
 				},
 			},
-		},
-		stdout: []string{
-			"::notice::The current git commit is diverged from the head of track non-main",
-		},
-		outputs: map[string]string{
-			"commit":     testBsrCommit,
-			"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
-		},
-	})
+			stdout: []string{
+				"::notice::The current git commit is diverged from the head of track non-main",
+			},
+			outputs: map[string]string{
+				"commit":     testBsrCommit,
+				"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+			},
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		githubClient: fakeGithubClient{
-			fakeCompareCommits: []fakeCompareCommits{
-				{
-					expectBase: testGitCommit1,
-					expectHead: testGitCommit2,
-					status:     0,
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						status:     0,
+					},
 				},
 			},
-		},
-		errMsg: "unexpected status: unknown(0)",
-	})
+			errMsg: "unexpected status: unknown(0)",
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		provider: fakeRegistryProvider{
-			newPushServiceErr: assert.AnError,
-		},
-		errMsg: assert.AnError.Error(),
-	})
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				newPushServiceErr: assert.AnError,
+			},
+			errMsg: assert.AnError.Error(),
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		provider: fakeRegistryProvider{
-			pushErr: rpc.NewNotFoundError("omg"),
-		},
-		errMsg: "omg",
-	})
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				pushErr: rpc.NewNotFoundError("omg"),
+			},
+			errMsg: "omg",
+		})
 
-	runCmdTest(t, cmdTest{
-		subCommand: "push",
-		env: map[string]string{
-			"INPUT_INPUT": "./testdata/success",
-		},
-		provider: fakeRegistryProvider{
-			pushErr: rpc.NewAlreadyExistsError("omg"),
-		},
-		stdout: []string{
-			"::notice::The latest commit has the same content; not creating a new commit.",
-		},
-		outputs: map[string]string{
-			"commit":     testBsrCommit,
-			"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
-		},
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				pushErr: rpc.NewAlreadyExistsError("omg"),
+			},
+			stdout: []string{
+				"::notice::The latest commit has the same content; not creating a new commit.",
+			},
+			outputs: map[string]string{
+				"commit":     testBsrCommit,
+				"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+			},
+		})
 	})
 }
 
@@ -418,14 +401,14 @@ func runCmdTest(t *testing.T, test cmdTest) {
 		env = map[string]string{}
 	}
 	defaultEnv := map[string]string{
-		"INPUT_BUF_TOKEN":      "buf-token",
-		"INPUT_INPUT":          writeConfigFile(t, test.config),
-		"INPUT_TRACK":          testNonMainTrack,
-		"INPUT_DEFAULT_BRANCH": testMainTrack,
-		"INPUT_GITHUB_TOKEN":   "github-token",
-		githubRepositoryKey:    "github-owner/github-repo",
-		githubRefNameKey:       testMainTrack,
-		githubSHAKey:           testGitCommit2,
+		bufTokenInput:       "buf-token",
+		inputInput:          writeConfigFile(t, test.config),
+		trackInput:          testNonMainTrack,
+		defaultBranchInput:  testMainTrack,
+		githubTokenInput:    "github-token",
+		githubRepositoryKey: "github-owner/github-repo",
+		githubRefNameKey:    testMainTrack,
+		githubSHAKey:        testGitCommit2,
 	}
 	if test.provider.headTags == nil {
 		test.provider.headTags = []string{testGitCommit1}
@@ -450,7 +433,7 @@ func runCmdTest(t *testing.T, test cmdTest) {
 	}
 	ctx := context.WithValue(context.Background(), registryProviderContextKey, &test.provider)
 	ctx = context.WithValue(ctx, githubClientContextKey, &test.githubClient)
-	container := app.NewContainer(env, nil, &stdout, &stderr, "test", test.subCommand)
+	container := app.NewContainer(env, nil, &stdout, &stderr, "test")
 	command := newRootCommand("test")
 	err := appcmd.Run(ctx, container, command)
 	if test.errMsg != "" {

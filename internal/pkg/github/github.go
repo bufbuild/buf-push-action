@@ -139,4 +139,3 @@ func newGoGithubClient(
 	client.UserAgent = userAgent
 	return client, nil
 }
-

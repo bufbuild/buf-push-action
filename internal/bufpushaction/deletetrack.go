@@ -22,32 +22,29 @@ import (
 	"github.com/bufbuild/buf/private/buf/bufcli"
 	"github.com/bufbuild/buf/private/bufpkg/bufconfig"
 	"github.com/bufbuild/buf/private/bufpkg/bufmodule/bufmoduleref"
-	"github.com/bufbuild/buf/private/gen/proto/apiclient/buf/alpha/registry/v1alpha1/registryv1alpha1apiclient"
-	"github.com/bufbuild/buf/private/pkg/app/appcmd"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
 	"github.com/bufbuild/buf/private/pkg/rpc"
 	"github.com/bufbuild/buf/private/pkg/storage/storageos"
-	"github.com/sethvargo/go-githubactions"
 )
 
-func newDeleteTrackCommand(name string, builder appflag.Builder) *appcmd.Command {
-	return &appcmd.Command{
-		Use:   name,
-		Short: "delete a track on BSR",
-		Run:   builder.NewRunFunc(deleteTrack, actionInterceptor),
+func deleteTrack(
+	ctx context.Context,
+	container appflag.Container,
+	eventName string,
+) error {
+	refType := container.Env(githubRefTypeKey)
+	if refType != "branch" {
+		writeNotice(
+			container.Stdout(),
+			fmt.Sprintf("Skipping because %q events are not supported with %q references", eventName, refType),
+		)
+		return nil
 	}
-}
-
-func deleteTrack(ctx context.Context, container appflag.Container) error {
-	action, ok := ctx.Value(actionContextKey).(*githubactions.Action)
-	if !ok {
-		return errors.New("action not found in context")
+	registryProvider, err := getRegistryProvider(ctx, container)
+	if err != nil {
+		return err
 	}
-	registryProvider, ok := ctx.Value(registryProviderContextKey).(registryv1alpha1apiclient.Provider)
-	if !ok {
-		return errors.New("registry provider not found in context")
-	}
-	input := action.GetInput(inputInputID)
+	input := container.Env(inputInput)
 	bucket, err := storageos.NewProvider().NewReadWriteBucket(input)
 	if err != nil {
 		return err
@@ -63,18 +60,18 @@ func deleteTrack(ctx context.Context, container appflag.Container) error {
 	if err != nil {
 		return err
 	}
-	track := action.GetInput(trackInputID)
+	track := container.Env(trackInput)
 	if track == "" {
 		return fmt.Errorf("track not provided")
 	}
-	defaultBranch := action.GetInput(defaultBranchInputID)
+	defaultBranch := container.Env(defaultBranchInput)
 	if defaultBranch == "" {
 		return fmt.Errorf("default_branch not provided")
 	}
 	refName := container.Env(githubRefNameKey)
 	track = resolveTrack(track, defaultBranch, refName)
 	if track == "main" {
-		action.Noticef("Skipping because the main track can not be deleted from BSR")
+		writeNotice(container.Stdout(), "Skipping because the main track can not be deleted from BSR")
 		return nil
 	}
 	repositoryTrackService, err := registryProvider.NewRepositoryTrackService(ctx, moduleReference.Remote())

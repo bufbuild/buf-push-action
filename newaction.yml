@@ -28,5 +28,6 @@ outputs:
   commit_url:
     description: The URL to view commit on the Buf Schema Registry.
 runs:
-  image: Dockerfile
   using: docker
+#  TODO: see https://github.com/actions/jekyll-build-pages for example workflow of publishing and image instead of building from Dockerfile
+  image: Dockerfile

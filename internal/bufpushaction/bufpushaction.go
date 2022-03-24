@@ -18,40 +18,53 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
+	"io"
 	"time"
 
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
 	"github.com/bufbuild/buf/private/buf/bufcli"
 	"github.com/bufbuild/buf/private/gen/proto/apiclient/buf/alpha/registry/v1alpha1/registryv1alpha1apiclient"
-	"github.com/bufbuild/buf/private/pkg/app"
 	"github.com/bufbuild/buf/private/pkg/app/appcmd"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
-	"github.com/sethvargo/go-githubactions"
 )
 
+// environment variable keys
 const (
 	bufTokenKey         = "BUF_TOKEN"
 	githubRepositoryKey = "GITHUB_REPOSITORY"
 	githubRefNameKey    = "GITHUB_REF_NAME"
+	githubRefTypeKey    = "GITHUB_REF_TYPE"
 	githubSHAKey        = "GITHUB_SHA"
+	githubEventNameKey  = "GITHUB_EVENT_NAME"
+)
+
+// action input and output IDs
+const (
+	commitOutputID    = "commit"
+	commitURLOutputID = "commit_url"
 )
 
 const (
-	bufTokenInputID      = "buf_token"
-	defaultBranchInputID = "default_branch"
-	githubTokenInputID   = "github_token"
-	inputInputID         = "input"
-	trackInputID         = "track"
-	commitOutputID       = "commit"
-	commitURLOutputID    = "commit_url"
+	bufTokenInput      = "INPUT_BUF_TOKEN"
+	defaultBranchInput = "INPUT_DEFAULT_BRANCH"
+	githubTokenInput   = "INPUT_GITHUB_TOKEN"
+	inputInput         = "INPUT_INPUT"
+	trackInput         = "INPUT_TRACK"
+)
+
+// constants used in the actions API
+const (
+	githubEventTypeDelete           = "delete"
+	githubEventTypePush             = "push"
+	githubEventTypeWorkflowDispatch = "workflow_dispatch"
+	githubRefTypeBranch             = "branch"
 )
 
 type contextKey int
 
+// context keys
 const (
-	actionContextKey contextKey = iota + 1
-	registryProviderContextKey
+	registryProviderContextKey contextKey = iota + 1
 	githubClientContextKey
 )
 
@@ -69,73 +82,50 @@ func newRootCommand(name string) *appcmd.Command {
 	return &appcmd.Command{
 		Use:   name,
 		Short: "helper for the GitHub Action buf-push-action",
-		SubCommands: []*appcmd.Command{
-			newDeleteTrackCommand("delete-track", builder),
-			newPushCommand("push", builder),
-		},
+		Run:   builder.NewRunFunc(run),
 	}
 }
 
-func actionInterceptor(
-	next func(context.Context, appflag.Container) error,
-) func(context.Context, appflag.Container) error {
-	return func(ctx context.Context, container appflag.Container) (retErr error) {
-		defer func() {
-			if retErr != nil {
-				retErr = fmt.Errorf("::error::%v", retErr)
-			}
-		}()
-		action := newAction(container)
-		bufToken := action.GetInput(bufTokenInputID)
-		if bufToken == "" {
-			return errors.New("a buf authentication token was not provided")
+func run(ctx context.Context, container appflag.Container) (retErr error) {
+	defer func() {
+		if retErr != nil {
+			retErr = fmt.Errorf("::error::%v", retErr)
 		}
-		container = newContainerWithEnvOverrides(container, map[string]string{
-			bufTokenKey: bufToken,
-		})
-		_, ok := ctx.Value(registryProviderContextKey).(registryv1alpha1apiclient.Provider)
-		if !ok {
-			registryProvider, err := bufcli.NewRegistryProvider(ctx, container)
-			if err != nil {
-				return err
-			}
-			ctx = context.WithValue(ctx, registryProviderContextKey, registryProvider)
-		}
-		ctx = context.WithValue(ctx, actionContextKey, action)
-		return next(ctx, container)
+	}()
+	bufToken := container.Env(bufTokenInput)
+	if bufToken == "" {
+		return errors.New("a buf authentication token was not provided")
 	}
+	container = newContainerWithEnvOverrides(container, map[string]string{
+		bufTokenKey: bufToken,
+	})
+	eventName := container.Env(githubEventNameKey)
+	switch eventName {
+	case "":
+		return errors.New("a github event name was not provided")
+	case githubEventTypeDelete:
+		return deleteTrack(ctx, container, eventName)
+	case githubEventTypePush, githubEventTypeWorkflowDispatch:
+		return push(ctx, container)
+	default:
+		writeNotice(container.Stdout(), fmt.Sprintf("Skipping because %q events are not supported", eventName))
+	}
+	return nil
 }
 
-// githubClientInterceptor adds a github client to ctx.
-func githubClientInterceptor(
-	next func(context.Context, appflag.Container) error,
-) func(context.Context, appflag.Container) error {
-	return func(ctx context.Context, container appflag.Container) error {
-		action, ok := ctx.Value(actionContextKey).(*githubactions.Action)
-		if !ok {
-			return errors.New("action not found in context")
-		}
-		githubToken := action.GetInput(githubTokenInputID)
-		if githubToken == "" {
-			return errors.New("a github authentication token was not provided")
-		}
-		githubRepository := container.Env(githubRepositoryKey)
-		if githubRepository == "" {
-			return errors.New("a github repository was not provided")
-		}
-		repoParts := strings.Split(githubRepository, "/")
-		if len(repoParts) != 2 {
-			return errors.New("a github repository was not provided in the format owner/repo")
-		}
-		githubClient, err := github.NewClient(ctx, githubToken, "buf-push-action", "", githubRepository)
-		if err != nil {
-			return err
-		}
-		if ctx.Value(githubClientContextKey) == nil {
-			ctx = context.WithValue(ctx, githubClientContextKey, githubClient)
-		}
-		return next(ctx, container)
+// getRegistryProvider returns a registry provider from the context if one is present or creates a provider.
+func getRegistryProvider(
+	ctx context.Context,
+	container appflag.Container,
+) (registryv1alpha1apiclient.Provider, error) {
+	provider, err := bufcli.NewRegistryProvider(ctx, container)
+	if err != nil {
+		return nil, err
 	}
+	if value, ok := ctx.Value(registryProviderContextKey).(registryv1alpha1apiclient.Provider); ok {
+		provider = value
+	}
+	return provider, nil
 }
 
 // resolveTrack returns track unless it is
@@ -150,10 +140,12 @@ func resolveTrack(track, defaultBranch, refName string) string {
 	return track
 }
 
-// newAction returns an action using the container's env and stdout.
-func newAction(container app.EnvStdoutContainer) *githubactions.Action {
-	return githubactions.New(
-		githubactions.WithGetenv(container.Env),
-		githubactions.WithWriter(container.Stdout()),
-	)
+// setOutput sets an output value for a GitHub Action.
+func setOutput(w io.Writer, name, value string) {
+	fmt.Fprintf(w, "::set-output name=%s::%s\n", name, value)
+}
+
+// writeNotice writes a notice for a GitHub Action.
+func writeNotice(w io.Writer, message string) {
+	fmt.Fprintf(w, "::notice::%s\n", message)
 }

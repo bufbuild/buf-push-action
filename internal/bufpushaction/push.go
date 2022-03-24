@@ -19,33 +19,20 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
 	"github.com/bufbuild/buf/private/buf/bufcli"
 	"github.com/bufbuild/buf/private/bufpkg/bufmodule"
 	"github.com/bufbuild/buf/private/bufpkg/bufmodule/bufmoduleref"
 	"github.com/bufbuild/buf/private/gen/proto/apiclient/buf/alpha/registry/v1alpha1/registryv1alpha1apiclient"
-	"github.com/bufbuild/buf/private/pkg/app/appcmd"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
 	"github.com/bufbuild/buf/private/pkg/command"
 	"github.com/bufbuild/buf/private/pkg/rpc"
-	"github.com/sethvargo/go-githubactions"
 )
 
-func newPushCommand(name string, builder appflag.Builder) *appcmd.Command {
-	return &appcmd.Command{
-		Use:   name,
-		Short: "push to BSR",
-		Run:   builder.NewRunFunc(push, actionInterceptor, githubClientInterceptor),
-	}
-}
-
 func push(ctx context.Context, container appflag.Container) error {
-	action, ok := ctx.Value(actionContextKey).(*githubactions.Action)
-	if !ok {
-		return errors.New("action not found in context")
-	}
-	input := action.GetInput(inputInputID)
+	input := container.Env(inputInput)
 	storageosProvider := bufcli.NewStorageosProvider(false)
 	runner := command.NewRunner()
 	module, moduleIdentity, err := bufcli.ReadModuleWithWorkspacesDisabled(
@@ -62,11 +49,11 @@ func push(ctx context.Context, container appflag.Container) error {
 	if err != nil {
 		return err
 	}
-	track := action.GetInput(trackInputID)
+	track := container.Env(trackInput)
 	if track == "" {
 		return fmt.Errorf("track not provided")
 	}
-	defaultBranch := action.GetInput(defaultBranchInputID)
+	defaultBranch := container.Env(defaultBranchInput)
 	if defaultBranch == "" {
 		return fmt.Errorf("default_branch not provided")
 	}
@@ -78,17 +65,17 @@ func push(ctx context.Context, container appflag.Container) error {
 		return errors.New("cannot push to main track from a non-default branch")
 	}
 	track = resolveTrack(track, defaultBranch, refName)
-	registryProvider, ok := ctx.Value(registryProviderContextKey).(registryv1alpha1apiclient.Provider)
-	if !ok {
-		return errors.New("registry provider not found in context")
+	registryProvider, err := getRegistryProvider(ctx, container)
+	if err != nil {
+		return err
 	}
 	tags, err := getTags(ctx, registryProvider, moduleIdentity, track)
 	if err != nil {
 		return err
 	}
-	ghClient, ok := ctx.Value(githubClientContextKey).(githubClient)
-	if !ok {
-		return errors.New("github client not found in context")
+	ghClient, err := getGithubClient(ctx, container)
+	if err != nil {
+		return err
 	}
 	currentGitCommit := container.Env(githubSHAKey)
 	if currentGitCommit == "" {
@@ -105,13 +92,22 @@ func push(ctx context.Context, container appflag.Container) error {
 		}
 		switch status {
 		case github.CompareCommitsStatusIdentical:
-			action.Noticef("Skipping because the current git commit is already the head of track %s", track)
+			writeNotice(
+				container.Stdout(),
+				fmt.Sprintf("Skipping because the current git commit is already the head of track %s", track),
+			)
 			return nil
 		case github.CompareCommitsStatusBehind:
-			action.Noticef("Skipping because the current git commit is behind the head of track %s", track)
+			writeNotice(
+				container.Stdout(),
+				fmt.Sprintf("Skipping because the current git commit is behind the head of track %s", track),
+			)
 			return nil
 		case github.CompareCommitsStatusDiverged:
-			action.Noticef("The current git commit is diverged from the head of track %s", track)
+			writeNotice(
+				container.Stdout(),
+				fmt.Sprintf("The current git commit is diverged from the head of track %s", track),
+			)
 		case github.CompareCommitsStatusAhead:
 		default:
 			return fmt.Errorf("unexpected status: %s", status)
@@ -133,18 +129,19 @@ func push(ctx context.Context, container appflag.Container) error {
 	)
 	if err != nil {
 		if rpc.GetErrorCode(err) == rpc.ErrorCodeAlreadyExists {
-			action.Noticef("The latest commit has the same content; not creating a new commit.")
+			writeNotice(container.Stdout(), "Skipping because the latest commit has the same content")
 		} else {
 			return err
 		}
 	}
 
-	action.SetOutput(commitOutputID, localModulePin.Commit)
-	action.SetOutput(commitURLOutputID, fmt.Sprintf(
+	setOutput(container.Stdout(), commitOutputID, localModulePin.Commit)
+	setOutput(container.Stdout(), commitURLOutputID, fmt.Sprintf(
 		"https://%s/tree/%s",
 		moduleIdentity.IdentityString(),
 		localModulePin.Commit,
 	))
+
 	return nil
 }
 
@@ -179,4 +176,30 @@ func getTags(
 		tags = append(tags, tagName)
 	}
 	return tags, nil
+}
+
+// getGithubClient returns the github client from the context if one is present or creates a client.
+func getGithubClient(ctx context.Context, container appflag.Container) (githubClient, error) {
+	githubToken := container.Env(githubTokenInput)
+	if githubToken == "" {
+		return nil, errors.New("a github authentication token was not provided")
+	}
+	githubRepository := container.Env(githubRepositoryKey)
+	if githubRepository == "" {
+		return nil, errors.New("a github repository was not provided")
+	}
+	repoParts := strings.Split(githubRepository, "/")
+	if len(repoParts) != 2 {
+		return nil, errors.New("a github repository was not provided in the format owner/repo")
+	}
+	var err error
+	var client githubClient
+	client, err = github.NewClient(ctx, githubToken, "buf-push-action", "", githubRepository)
+	if err != nil {
+		return nil, err
+	}
+	if value, ok := ctx.Value(githubClientContextKey).(githubClient); ok {
+		client = value
+	}
+	return client, nil
 }
