@@ -27,13 +27,9 @@ import (
 	"github.com/bufbuild/buf/private/pkg/storage/storageos"
 )
 
-func deleteTrack(
-	ctx context.Context,
-	container appflag.Container,
-	eventName string,
-) error {
+func deleteTrack(ctx context.Context, container appflag.Container, eventName string) error {
 	refType := container.Env(githubRefTypeKey)
-	if refType != "branch" {
+	if refType != githubRefTypeBranch {
 		writeNotice(
 			container.Stdout(),
 			fmt.Sprintf("Skipping because %q events are not supported with %q references", eventName, refType),
@@ -80,12 +76,7 @@ func deleteTrack(
 	}
 	owner := moduleReference.Owner()
 	repository := moduleReference.Repository()
-	if err := repositoryTrackService.DeleteRepositoryTrackByName(
-		ctx,
-		owner,
-		repository,
-		track,
-	); err != nil {
+	if err := repositoryTrackService.DeleteRepositoryTrackByName(ctx, owner, repository, track); err != nil {
 		if rpc.GetErrorCode(err) == rpc.ErrorCodeNotFound {
 			return bufcli.NewModuleReferenceNotFoundError(moduleReference)
 		}

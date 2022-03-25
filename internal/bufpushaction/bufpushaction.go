@@ -36,20 +36,17 @@ const (
 	githubRefTypeKey    = "GITHUB_REF_TYPE"
 	githubSHAKey        = "GITHUB_SHA"
 	githubEventNameKey  = "GITHUB_EVENT_NAME"
+	bufTokenInput       = "INPUT_BUF_TOKEN"
+	defaultBranchInput  = "INPUT_DEFAULT_BRANCH"
+	githubTokenInput    = "INPUT_GITHUB_TOKEN"
+	inputInput          = "INPUT_INPUT"
+	trackInput          = "INPUT_TRACK"
 )
 
 // action input and output IDs
 const (
 	commitOutputID    = "commit"
 	commitURLOutputID = "commit_url"
-)
-
-const (
-	bufTokenInput      = "INPUT_BUF_TOKEN"
-	defaultBranchInput = "INPUT_DEFAULT_BRANCH"
-	githubTokenInput   = "INPUT_GITHUB_TOKEN"
-	inputInput         = "INPUT_INPUT"
-	trackInput         = "INPUT_TRACK"
 )
 
 // constants used in the actions API
@@ -106,7 +103,7 @@ func run(ctx context.Context, container appflag.Container) (retErr error) {
 	case githubEventTypeDelete:
 		return deleteTrack(ctx, container, eventName)
 	case githubEventTypePush, githubEventTypeWorkflowDispatch:
-		return push(ctx, container)
+		return push(ctx, container, eventName)
 	default:
 		writeNotice(container.Stdout(), fmt.Sprintf("Skipping because %q events are not supported", eventName))
 	}
@@ -114,10 +111,7 @@ func run(ctx context.Context, container appflag.Container) (retErr error) {
 }
 
 // getRegistryProvider returns a registry provider from the context if one is present or creates a provider.
-func getRegistryProvider(
-	ctx context.Context,
-	container appflag.Container,
-) (registryv1alpha1apiclient.Provider, error) {
+func getRegistryProvider(ctx context.Context, container appflag.Container) (registryv1alpha1apiclient.Provider, error) {
 	provider, err := bufcli.NewRegistryProvider(ctx, container)
 	if err != nil {
 		return nil, err

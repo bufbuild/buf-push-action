@@ -31,7 +31,15 @@ import (
 	"github.com/bufbuild/buf/private/pkg/rpc"
 )
 
-func push(ctx context.Context, container appflag.Container) error {
+func push(ctx context.Context, container appflag.Container, eventName string) error {
+	refType := container.Env(githubRefTypeKey)
+	if refType != githubRefTypeBranch {
+		writeNotice(
+			container.Stdout(),
+			fmt.Sprintf("Skipping because %q events are not supported with %q references", eventName, refType),
+		)
+		return nil
+	}
 	input := container.Env(inputInput)
 	storageosProvider := bufcli.NewStorageosProvider(false)
 	runner := command.NewRunner()
@@ -129,7 +137,7 @@ func push(ctx context.Context, container appflag.Container) error {
 	)
 	if err != nil {
 		if rpc.GetErrorCode(err) == rpc.ErrorCodeAlreadyExists {
-			writeNotice(container.Stdout(), "Skipping because the latest commit has the same content")
+			writeNotice(container.Stdout(), "The latest commit has the same content; not creating a new commit.")
 		} else {
 			return err
 		}

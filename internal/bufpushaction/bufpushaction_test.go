@@ -66,13 +66,7 @@ func buildEnvMap(maps ...map[string]string) map[string]string {
 }
 
 func TestCommand(t *testing.T) {
-	runCmdTest(t, cmdTest{
-		env: map[string]string{
-			bufTokenInput: "buf-token",
-		},
-	})
-
-	t.Run("delete", func(t *testing.T) {
+	t.Run("delete branch", func(t *testing.T) {
 		envDeleteBranch := map[string]string{
 			githubEventNameKey: githubEventTypeDelete,
 			githubRefTypeKey:   githubRefTypeBranch,
@@ -84,65 +78,56 @@ func TestCommand(t *testing.T) {
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envDeleteBranch, map[string]string{
-				githubRefTypeKey: "tag",
-			}),
-			stdout: []string{
-				`::notice::Skipping because "delete" events are not supported with "tag" references`,
-			},
-		})
-
-		runCmdTest(t, cmdTest{
-			env: buildEnvMap(envDeleteBranch, map[string]string{
-				"INPUT_BUF_TOKEN": "",
+				bufTokenInput: "",
 			}),
 			errMsg: "a buf authentication token was not provided",
 		})
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envDeleteBranch, map[string]string{
-				"INPUT_INPUT": "path/does/not/exist",
+				inputInput: "path/does/not/exist",
 			}),
 			errMsg: "path/does/not/exist: does not exist",
 		})
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envDeleteBranch, map[string]string{
-				"INPUT_INPUT": t.TempDir(),
+				inputInput: t.TempDir(),
 			}),
 			errMsg: "module identity not found in config",
 		})
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envDeleteBranch, map[string]string{
-				"INPUT_INPUT": writeConfigFile(t, "invalid config"),
+				inputInput: writeConfigFile(t, "invalid config"),
 			}),
 			errMsg: "could not unmarshal as YAML",
 		})
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envDeleteBranch, map[string]string{
-				"INPUT_INPUT": writeConfigFile(t, v1Config("not-a-module")),
+				inputInput: writeConfigFile(t, v1Config("not-a-module")),
 			}),
 			errMsg: `module identity "not-a-module" is invalid: must be in the form remote/owner/repository`,
 		})
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envDeleteBranch, map[string]string{
-				"INPUT_TRACK": "",
+				trackInput: "",
 			}),
 			errMsg: "track not provided",
 		})
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envDeleteBranch, map[string]string{
-				"INPUT_DEFAULT_BRANCH": "",
+				defaultBranchInput: "",
 			}),
 			errMsg: "default_branch not provided",
 		})
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envDeleteBranch, map[string]string{
-				"INPUT_TRACK": testMainTrack,
+				trackInput: testMainTrack,
 			}),
 			stdout: []string{
 				"::notice::Skipping because the main track can not be deleted from BSR",
@@ -174,26 +159,26 @@ func TestCommand(t *testing.T) {
 		})
 	})
 
-	t.Run("push", func(t *testing.T) {
+	t.Run("push branch", func(t *testing.T) {
 		envPushBranch := map[string]string{
 			githubEventNameKey: githubEventTypePush,
 			githubRefTypeKey:   githubRefTypeBranch,
 		}
 		envInputSuccess := map[string]string{
-			"INPUT_INPUT": "./testdata/success",
+			inputInput: "./testdata/success",
 		}
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envPushBranch, envInputSuccess),
 			outputs: map[string]string{
-				"commit":     testBsrCommit,
-				"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+				commitOutputID:    testBsrCommit,
+				commitURLOutputID: fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
 			},
 		})
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envPushBranch, map[string]string{
-				"INPUT_INPUT": "path/does/not/exist",
+				inputInput: "path/does/not/exist",
 			}),
 			errMsg: "path/does/not/exist: does not exist",
 		})
@@ -205,23 +190,44 @@ func TestCommand(t *testing.T) {
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envPushBranch, envInputSuccess, map[string]string{
-				"INPUT_TRACK": "",
+				trackInput: "",
 			}),
 			errMsg: "track not provided",
 		})
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envPushBranch, envInputSuccess, map[string]string{
-				"INPUT_DEFAULT_BRANCH": "",
+				defaultBranchInput: "",
 			}),
 			errMsg: "default_branch not provided",
 		})
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envPushBranch, envInputSuccess, map[string]string{
-				"INPUT_DEFAULT_BRANCH": testNonMainTrack,
-				"INPUT_TRACK":          testMainTrack,
-				githubRefNameKey:       testMainTrack,
+				githubTokenInput: "",
+			}),
+			errMsg: "a github authentication token was not provided",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess, map[string]string{
+				githubRepositoryKey: "",
+			}),
+			errMsg: "a github repository was not provided",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess, map[string]string{
+				githubRepositoryKey: "no-slash",
+			}),
+			errMsg: "a github repository was not provided in the format owner/repo",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess, map[string]string{
+				defaultBranchInput: testNonMainTrack,
+				trackInput:         testMainTrack,
+				githubRefNameKey:   testMainTrack,
 			}),
 			errMsg: "cannot push to main track from a non-default branch",
 		})
@@ -248,8 +254,8 @@ func TestCommand(t *testing.T) {
 				headTags: []string{"some", "other", "tags", strings.Repeat("z", 40)},
 			},
 			outputs: map[string]string{
-				"commit":     testBsrCommit,
-				"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+				commitOutputID:    testBsrCommit,
+				commitURLOutputID: fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
 			},
 		})
 
@@ -272,8 +278,8 @@ func TestCommand(t *testing.T) {
 				},
 			},
 			outputs: map[string]string{
-				"commit":     testBsrCommit,
-				"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+				commitOutputID:    testBsrCommit,
+				commitURLOutputID: fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
 			},
 		})
 
@@ -338,8 +344,8 @@ func TestCommand(t *testing.T) {
 				"::notice::The current git commit is diverged from the head of track non-main",
 			},
 			outputs: map[string]string{
-				"commit":     testBsrCommit,
-				"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+				commitOutputID:    testBsrCommit,
+				commitURLOutputID: fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
 			},
 		})
 
@@ -382,8 +388,49 @@ func TestCommand(t *testing.T) {
 				"::notice::The latest commit has the same content; not creating a new commit.",
 			},
 			outputs: map[string]string{
-				"commit":     testBsrCommit,
-				"commit_url": fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+				commitOutputID:    testBsrCommit,
+				commitURLOutputID: fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+			},
+		})
+	})
+
+	t.Run("no event", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			errMsg: "a github event name was not provided",
+		})
+	})
+
+	t.Run("unsupported event", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			env: map[string]string{
+				githubEventNameKey: "create",
+			},
+			stdout: []string{
+				`::notice::Skipping because "create" events are not supported`,
+			},
+		})
+	})
+
+	t.Run("delete tag", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(map[string]string{
+				githubEventNameKey: githubEventTypeDelete,
+				githubRefTypeKey:   "tag",
+			}),
+			stdout: []string{
+				`::notice::Skipping because "delete" events are not supported with "tag" references`,
+			},
+		})
+	})
+
+	t.Run("push tag", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(map[string]string{
+				githubEventNameKey: githubEventTypePush,
+				githubRefTypeKey:   "tag",
+			}),
+			stdout: []string{
+				`::notice::Skipping because "push" events are not supported with "tag" references`,
 			},
 		})
 	})
