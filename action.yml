@@ -27,55 +27,9 @@ inputs:
 outputs:
   commit:
     description: The commit pushed to the Buf Schema Registry.
-    value: ${{ steps.push.outputs.commit }}
   commit_url:
     description: The URL to view commit on the Buf Schema Registry.
-    value: ${{ steps.push.outputs.commit_url }}
 runs:
-  using: composite
-  steps:
-    - id: cache-setup
-      shell: bash
-      working-directory: ${{ github.action_path }}
-      run: |
-        echo "::set-output name=key::${RUNNER_OS}-buf-push-action-$(make directoryhash)"
-        echo "::set-output name=path::${RUNNER_TEMP}/buf-push-action/bin"
-    - uses: actions/cache@v2
-      with:
-        path: ${{ steps.cache-setup.outputs.path }}
-        key: ${{ steps.cache-setup.outputs.key }}
-    - name: make downloadbinary
-      shell: bash
-      working-directory: ${{ github.action_path }}
-      env:
-        GITHUB_TOKEN: ${{ inputs.github_token }}
-        DOWNLOADBINARY_RELEASE: ${{ github.action_ref }}
-        DOWNLOADBINARY_OUTPUT_DIR: ${{ steps.cache-setup.outputs.path }}
-      run: make downloadbinary
-    - name: push
-      if: github.event_name != 'delete'
-      id: push
-      shell: bash
-      env:
-        BUF_TOKEN: ${{ inputs.buf_token }}
-        GITHUB_TOKEN: ${{ inputs.github_token }}
-      run: |
-        "${{ steps.cache-setup.outputs.path }}/buf-push-action" push \
-          "${{ inputs.input }}" \
-          "${{ inputs.track }}" \
-          "${{ github.sha }}" \
-          "${{ inputs.default-branch }}" \
-          "${{ github.ref_name }}"
-    - name: delete track
-      if: github.event_name == 'delete' && github.event.ref_type == 'branch'
-      id: delete-track
-      shell: bash
-      env:
-        BUF_TOKEN: ${{ inputs.buf_token }}
-        GITHUB_TOKEN: ${{ inputs.github_token }}
-      run: |
-        "${{ steps.cache-setup.outputs.path }}/buf-push-action" delete-track \
-          "${{ inputs.input }}" \
-          "${{ inputs.track }}" \
-          "${{ inputs.default-branch }}" \
-          "${{ github.ref_name }}"
+  using: docker
+  #  TODO: see https://github.com/actions/jekyll-build-pages for example workflow of publishing and image instead of building from Dockerfile
+  image: Dockerfile

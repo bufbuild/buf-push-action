@@ -37,10 +37,10 @@ const (
 	githubSHAKey        = "GITHUB_SHA"
 	githubEventNameKey  = "GITHUB_EVENT_NAME"
 	bufTokenInput       = "INPUT_BUF_TOKEN"
-	defaultBranchInput  = "INPUT_DEFAULT_BRANCH"
-	githubTokenInput    = "INPUT_GITHUB_TOKEN"
 	inputInput          = "INPUT_INPUT"
+	defaultBranchInput  = "INPUT_DEFAULT_BRANCH"
 	trackInput          = "INPUT_TRACK"
+	githubTokenInput    = "INPUT_GITHUB_TOKEN"
 )
 
 // action input and output IDs
