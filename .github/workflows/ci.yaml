@@ -67,6 +67,7 @@ jobs:
         with:
           buf_token: ${{ secrets.BUFBOTPUBLIC_TOKEN }}
           input: ./testing/proto
+          track: testing
       - name: post commit status to github
         env:
           COMMIT: ${{ steps.push.outputs.commit }}
