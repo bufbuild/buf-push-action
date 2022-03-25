@@ -57,3 +57,24 @@ jobs:
       - name: make-test
         if: success()
         run: make test
+  action-test:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - uses: bufbuild/buf-push-action@WillAbides/docker
+        id: push
+        with:
+          buf_token: ${{ secrets.BUFBOTPUBLIC_TOKEN }}
+          input: ./testing/proto
+      - name: post commit status to github
+        env:
+          COMMIT: ${{ steps.push.outputs.commit }}
+          COMMIT_URL: ${{ steps.push.outputs.commit_url }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/{owner}/{repo}/statuses/${GITHUB_SHA} \
+            -F "state=success" \
+            -F "target_url=${COMMIT_URL}" \
+            -F "description=pushed commit ${COMMIT}" \
+            -F "context=buf-push"
