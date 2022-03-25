@@ -22,12 +22,13 @@ import (
 	"github.com/bufbuild/buf/private/buf/bufcli"
 	"github.com/bufbuild/buf/private/bufpkg/bufconfig"
 	"github.com/bufbuild/buf/private/bufpkg/bufmodule/bufmoduleref"
+	"github.com/bufbuild/buf/private/gen/proto/apiclient/buf/alpha/registry/v1alpha1/registryv1alpha1apiclient"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
 	"github.com/bufbuild/buf/private/pkg/rpc"
 	"github.com/bufbuild/buf/private/pkg/storage/storageos"
 )
 
-func deleteTrack(ctx context.Context, container appflag.Container, eventName string) error {
+func deleteTrack(ctx context.Context, container appflag.Container, eventName string, registryProvider registryv1alpha1apiclient.Provider) error {
 	refType := container.Env(githubRefTypeKey)
 	if refType != githubRefTypeBranch {
 		writeNotice(
@@ -35,10 +36,6 @@ func deleteTrack(ctx context.Context, container appflag.Container, eventName str
 			fmt.Sprintf("Skipping because %q events are not supported with %q references", eventName, refType),
 		)
 		return nil
-	}
-	registryProvider, err := getRegistryProvider(ctx, container)
-	if err != nil {
-		return err
 	}
 	input := container.Env(inputInput)
 	bucket, err := storageos.NewProvider().NewReadWriteBucket(input)

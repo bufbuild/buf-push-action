@@ -23,14 +23,17 @@ import (
 
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
 	"github.com/bufbuild/buf/private/buf/bufcli"
+	"github.com/bufbuild/buf/private/bufpkg/bufapiclient"
+	"github.com/bufbuild/buf/private/bufpkg/bufrpc"
+	"github.com/bufbuild/buf/private/bufpkg/buftransport"
 	"github.com/bufbuild/buf/private/gen/proto/apiclient/buf/alpha/registry/v1alpha1/registryv1alpha1apiclient"
 	"github.com/bufbuild/buf/private/pkg/app/appcmd"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
+	"github.com/bufbuild/buf/private/pkg/rpc/rpcauth"
 )
 
 // environment variable keys
 const (
-	bufTokenKey         = "BUF_TOKEN"
 	githubRepositoryKey = "GITHUB_REPOSITORY"
 	githubRefNameKey    = "GITHUB_REF_NAME"
 	githubRefTypeKey    = "GITHUB_REF_TYPE"
@@ -93,26 +96,37 @@ func run(ctx context.Context, container appflag.Container) (retErr error) {
 	if bufToken == "" {
 		return errors.New("a buf authentication token was not provided")
 	}
-	container = newContainerWithEnvOverrides(container, map[string]string{
-		bufTokenKey: bufToken,
-	})
+	ctx = bufrpc.WithOutgoingCLIVersionHeader(ctx, bufcli.Version)
+	ctx = rpcauth.WithToken(ctx, bufToken)
+	registryProvider, err := newRegistryProvider(ctx, container)
+	if err != nil {
+		return err
+	}
 	eventName := container.Env(githubEventNameKey)
 	switch eventName {
 	case "":
 		return errors.New("a github event name was not provided")
 	case githubEventTypeDelete:
-		return deleteTrack(ctx, container, eventName)
+		return deleteTrack(ctx, container, eventName, registryProvider)
 	case githubEventTypePush, githubEventTypeWorkflowDispatch:
-		return push(ctx, container, eventName)
+		return push(ctx, container, eventName, registryProvider)
 	default:
 		writeNotice(container.Stdout(), fmt.Sprintf("Skipping because %q events are not supported", eventName))
 	}
 	return nil
 }
 
-// getRegistryProvider returns a registry provider from the context if one is present or creates a provider.
-func getRegistryProvider(ctx context.Context, container appflag.Container) (registryv1alpha1apiclient.Provider, error) {
-	provider, err := bufcli.NewRegistryProvider(ctx, container)
+// newRegistryProvider returns a registry provider from the context if one is present or creates a provider.
+func newRegistryProvider(ctx context.Context, container appflag.Container) (registryv1alpha1apiclient.Provider, error) {
+	config, err := bufcli.NewConfig(container)
+	if err != nil {
+		return nil, err
+	}
+	var options []bufapiclient.RegistryProviderOption
+	if buftransport.IsAPISubdomainEnabled(container) {
+		options = append(options, bufapiclient.RegistryProviderWithAddressMapper(buftransport.PrependAPISubdomain))
+	}
+	provider, err := bufapiclient.NewRegistryProvider(ctx, container.Logger(), config.TLS, options...)
 	if err != nil {
 		return nil, err
 	}

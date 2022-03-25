@@ -31,7 +31,7 @@ import (
 	"github.com/bufbuild/buf/private/pkg/rpc"
 )
 
-func push(ctx context.Context, container appflag.Container, eventName string) error {
+func push(ctx context.Context, container appflag.Container, eventName string, registryProvider registryv1alpha1apiclient.Provider) error {
 	refType := container.Env(githubRefTypeKey)
 	if refType != githubRefTypeBranch {
 		writeNotice(
@@ -73,10 +73,6 @@ func push(ctx context.Context, container appflag.Container, eventName string) er
 		return errors.New("cannot push to main track from a non-default branch")
 	}
 	track = resolveTrack(track, defaultBranch, refName)
-	registryProvider, err := getRegistryProvider(ctx, container)
-	if err != nil {
-		return err
-	}
 	var tags []string
 	repositoryCommitService, err := registryProvider.NewRepositoryCommitService(ctx, moduleIdentity.Remote())
 	if err != nil {
