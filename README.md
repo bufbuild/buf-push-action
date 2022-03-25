@@ -34,7 +34,7 @@ jobs:
       - name: post commit status to github
         if: github.event_name != 'delete'
         env:
-          GIHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ github.token }}
         run: |
           gh api repos/{owner}/{repo}/statuses/${GITHUB_SHA} \
             -F "state=success" \

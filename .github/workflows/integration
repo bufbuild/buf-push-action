@@ -1,0 +1,26 @@
+name: integration
+on: [push, workflow_dispatch, delete]
+jobs:
+  action-test:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - uses: ./
+        id: buf-push
+        with:
+          buf_token: ${{ secrets.BUFBOTPUBLIC_TOKEN }}
+          input: ./testing/proto
+          track: testing
+      - name: post commit status to github
+        env:
+          COMMIT: ${{ steps.buf-push.outputs.commit }}
+          COMMIT_URL: ${{ steps.buf-push.outputs.commit_url }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          gh api repos/{owner}/{repo}/statuses/${GITHUB_SHA} \
+            -F "state=success" \
+            -F "target_url=${COMMIT_URL}" \
+            -F "description=pushed commit ${COMMIT}" \
+            -F "context=buf-push"
+
