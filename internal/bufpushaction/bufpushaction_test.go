@@ -43,6 +43,7 @@ const (
 	testMainTrack    = "main"
 	testAddress      = "buf.build"
 	testNonMainTrack = "non-main"
+	testRepositoryID = "6b36a5d1-b845-4a97-885b-adbf52883819"
 )
 
 type cmdTest struct {
@@ -374,23 +375,83 @@ func TestCommand(t *testing.T) {
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envPushBranch, envInputSuccess),
 			provider: fakeRegistryProvider{
-				pushErr: rpc.NewNotFoundError("omg"),
+				pushErr: rpc.NewNotFoundError("already exists"),
 			},
-			errMsg: "omg",
+			errMsg: "already exists",
 		})
 
 		runCmdTest(t, cmdTest{
 			env: buildEnvMap(envPushBranch, envInputSuccess),
 			provider: fakeRegistryProvider{
-				pushErr: rpc.NewAlreadyExistsError("omg"),
-			},
-			stdout: []string{
-				"::notice::The latest commit has the same content; not creating a new commit.",
+				pushErr: rpc.NewAlreadyExistsError("already exists"),
 			},
 			outputs: map[string]string{
 				commitOutputID:    testBsrCommit,
 				commitURLOutputID: fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
 			},
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				pushErr:                 rpc.NewAlreadyExistsError("already exists"),
+				newRepositoryServiceErr: assert.AnError,
+			},
+			errMsg: assert.AnError.Error(),
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				pushErr:                    rpc.NewAlreadyExistsError("already exists"),
+				getRepositoryByFullNameErr: rpc.NewNotFoundError("not found"),
+			},
+			errMsg: `a repository named "buf.build/foo/bar" does not exist`,
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				pushErr:                    rpc.NewAlreadyExistsError("already exists"),
+				getRepositoryByFullNameErr: assert.AnError,
+			},
+			errMsg: assert.AnError.Error(),
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				pushErr:                    rpc.NewAlreadyExistsError("already exists"),
+				newRepositoryTagServiceErr: assert.AnError,
+			},
+			errMsg: assert.AnError.Error(),
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				pushErr:                rpc.NewAlreadyExistsError("already exists"),
+				createRepositoryTagErr: rpc.NewNotFoundError("not found"),
+			},
+			errMsg: "buf.build/foo/bar:non-main does not exist",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				pushErr:                rpc.NewAlreadyExistsError("already exists"),
+				createRepositoryTagErr: rpc.NewAlreadyExistsError("tag already exists"),
+			},
+			errMsg: "buf.build/foo/bar:beefcafebeefcafebeefcafebeefcafebeefcafe already exists with different content",
+		})
+
+		runCmdTest(t, cmdTest{
+			env: buildEnvMap(envPushBranch, envInputSuccess),
+			provider: fakeRegistryProvider{
+				pushErr:                rpc.NewAlreadyExistsError("already exists"),
+				createRepositoryTagErr: assert.AnError,
+			},
+			errMsg: assert.AnError.Error(),
 		})
 	})
 
@@ -459,9 +520,6 @@ func runCmdTest(t *testing.T, test cmdTest) {
 	}
 	if test.provider.headTags == nil {
 		test.provider.headTags = []string{testGitCommit1}
-	}
-	if test.provider.pushTags == nil {
-		test.provider.pushTags = []string{testGitCommit2}
 	}
 
 	for k, v := range defaultEnv {

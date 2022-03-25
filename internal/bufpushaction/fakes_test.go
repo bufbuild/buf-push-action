@@ -16,6 +16,7 @@ package bufpushaction
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
@@ -30,6 +31,8 @@ import (
 type fakeRegistryProvider struct {
 	registryv1alpha1apiclient.Provider
 	registryv1alpha1api.RepositoryTrackService
+	registryv1alpha1api.RepositoryTagService
+	registryv1alpha1api.RepositoryService
 	registryv1alpha1api.RepositoryCommitService
 	registryv1alpha1api.PushService
 	t                                 *testing.T
@@ -37,14 +40,19 @@ type fakeRegistryProvider struct {
 	ownerName                         string
 	repositoryName                    string
 	trackName                         string
-	pushTags                          []string
+	repositoryID                      string
+	pushGitCommit                     string
 	headTags                          []string
 	deleteRepositoryTrackByNameErr    error
 	getRepositoryCommitByReferenceErr error
+	getRepositoryByFullNameErr        error
 	pushErr                           error
+	createRepositoryTagErr            error
 	newRepositoryTrackServiceErr      error
 	newRepositoryCommitServiceErr     error
 	newPushServiceErr                 error
+	newRepositoryServiceErr           error
+	newRepositoryTagServiceErr        error
 }
 
 func (f *fakeRegistryProvider) DeleteRepositoryTrackByName(
@@ -146,11 +154,11 @@ func (f *fakeRegistryProvider) Push(
 	assert.Equal(f.t, wantRepository, repository)
 	assert.Equal(f.t, "", branch)
 	assert.NotNil(f.t, module)
-	if len(f.pushTags) == 0 {
-		assert.Empty(f.t, tags)
-	} else {
-		assert.Equal(f.t, f.pushTags, tags)
+	pushGitCommit := f.pushGitCommit
+	if pushGitCommit == "" {
+		pushGitCommit = testGitCommit2
 	}
+	assert.Equal(f.t, []string{pushGitCommit}, tags)
 	wantTrack := f.trackName
 	if wantTrack == "" {
 		wantTrack = testNonMainTrack
@@ -171,6 +179,78 @@ func (f *fakeRegistryProvider) NewPushService(
 	}
 	assert.Equal(f.t, wantAddress, address)
 	return f, f.newPushServiceErr
+}
+
+func (f *fakeRegistryProvider) GetRepositoryByFullName(
+	_ context.Context,
+	fullName string,
+) (*registryv1alpha1.Repository, *registryv1alpha1.RepositoryCounts, error) {
+	wantOwner := f.ownerName
+	if wantOwner == "" {
+		wantOwner = testOwner
+	}
+	wantRepository := f.repositoryName
+	if wantRepository == "" {
+		wantRepository = testRepository
+	}
+	wantFullName := fmt.Sprintf("%s/%s", wantOwner, wantRepository)
+	assert.Equal(f.t, wantFullName, fullName)
+	repositoryID := f.repositoryID
+	if repositoryID == "" {
+		repositoryID = testRepositoryID
+	}
+	repository := registryv1alpha1.Repository{
+		Id: repositoryID,
+	}
+	return &repository, nil, f.getRepositoryByFullNameErr
+}
+
+func (f *fakeRegistryProvider) NewRepositoryService(
+	_ context.Context,
+	address string,
+) (registryv1alpha1api.RepositoryService, error) {
+	wantAddress := f.address
+	if wantAddress == "" {
+		wantAddress = testAddress
+	}
+	assert.Equal(f.t, wantAddress, address)
+	return f, f.newRepositoryServiceErr
+}
+
+func (f *fakeRegistryProvider) CreateRepositoryTag(
+	_ context.Context,
+	repositoryID string,
+	name string,
+	commitName string,
+) (repositoryTag *registryv1alpha1.RepositoryTag, err error) {
+	wantRepositoryID := f.repositoryID
+	if wantRepositoryID == "" {
+		wantRepositoryID = testRepositoryID
+	}
+	assert.Equal(f.t, wantRepositoryID, repositoryID)
+	wantName := f.pushGitCommit
+	if wantName == "" {
+		wantName = testGitCommit2
+	}
+	assert.Equal(f.t, wantName, name)
+	wantCommitName := f.trackName
+	if wantCommitName == "" {
+		wantCommitName = testNonMainTrack
+	}
+	assert.Equal(f.t, wantCommitName, commitName)
+	return nil, f.createRepositoryTagErr
+}
+
+func (f *fakeRegistryProvider) NewRepositoryTagService(
+	_ context.Context,
+	address string,
+) (registryv1alpha1api.RepositoryTagService, error) {
+	wantAddress := f.address
+	if wantAddress == "" {
+		wantAddress = testAddress
+	}
+	assert.Equal(f.t, wantAddress, address)
+	return f, f.newRepositoryTagServiceErr
 }
 
 type fakeGithubClient struct {

@@ -121,8 +121,7 @@ func push(ctx context.Context, container appflag.Container, eventName string) er
 			return fmt.Errorf("unexpected status: %s", status)
 		}
 	}
-	remote := moduleIdentity.Remote()
-	pushService, err := registryProvider.NewPushService(ctx, remote)
+	pushService, err := registryProvider.NewPushService(ctx, moduleIdentity.Remote())
 	if err != nil {
 		return err
 	}
@@ -136,9 +135,10 @@ func push(ctx context.Context, container appflag.Container, eventName string) er
 		[]string{track},
 	)
 	if err != nil {
-		if rpc.GetErrorCode(err) == rpc.ErrorCodeAlreadyExists {
-			writeNotice(container.Stdout(), "The latest commit has the same content; not creating a new commit.")
-		} else {
+		if rpc.GetErrorCode(err) != rpc.ErrorCodeAlreadyExists {
+			return err
+		}
+		if err := tagExistingCommit(ctx, registryProvider, moduleIdentity, currentGitCommit, track); err != nil {
 			return err
 		}
 	}
@@ -150,6 +150,41 @@ func push(ctx context.Context, container appflag.Container, eventName string) er
 		localModulePin.Commit,
 	))
 
+	return nil
+}
+
+func tagExistingCommit(
+	ctx context.Context,
+	registryProvider registryv1alpha1apiclient.Provider,
+	moduleIdentity bufmoduleref.ModuleIdentity,
+	tagName string,
+	reference string,
+) error {
+	repositoryService, err := registryProvider.NewRepositoryService(ctx, moduleIdentity.Remote())
+	if err != nil {
+		return err
+	}
+	repository, _, err := repositoryService.GetRepositoryByFullName(ctx, moduleIdentity.Owner()+"/"+moduleIdentity.Repository())
+	if err != nil {
+		if rpc.GetErrorCode(err) == rpc.ErrorCodeNotFound {
+			return fmt.Errorf("a repository named %q does not exist", moduleIdentity.IdentityString())
+		}
+		return err
+	}
+	repositoryTagService, err := registryProvider.NewRepositoryTagService(ctx, moduleIdentity.Remote())
+	if err != nil {
+		return err
+	}
+	_, err = repositoryTagService.CreateRepositoryTag(ctx, repository.Id, tagName, reference)
+	if err != nil {
+		if rpc.GetErrorCode(err) == rpc.ErrorCodeNotFound {
+			return fmt.Errorf("%s:%s does not exist", moduleIdentity.IdentityString(), reference)
+		}
+		if rpc.GetErrorCode(err) == rpc.ErrorCodeAlreadyExists {
+			return fmt.Errorf("%s:%s already exists with different content", moduleIdentity.IdentityString(), tagName)
+		}
+		return err
+	}
 	return nil
 }
 
