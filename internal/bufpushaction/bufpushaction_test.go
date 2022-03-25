@@ -433,7 +433,7 @@ func TestCommand(t *testing.T) {
 				pushErr:                rpc.NewAlreadyExistsError("already exists"),
 				createRepositoryTagErr: rpc.NewNotFoundError("not found"),
 			},
-			errMsg: "buf.build/foo/bar:non-main does not exist",
+			errMsg: "buf.build/foo/bar:01234567890123456789012345678901 does not exist",
 		})
 
 		runCmdTest(t, cmdTest{

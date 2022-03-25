@@ -77,10 +77,37 @@ func push(ctx context.Context, container appflag.Container, eventName string) er
 	if err != nil {
 		return err
 	}
-	tags, err := getTags(ctx, registryProvider, moduleIdentity, track)
+	var tags []string
+	repositoryCommitService, err := registryProvider.NewRepositoryCommitService(ctx, moduleIdentity.Remote())
 	if err != nil {
 		return err
 	}
+	repositoryCommit, err := repositoryCommitService.GetRepositoryCommitByReference(
+		ctx,
+		moduleIdentity.Owner(),
+		moduleIdentity.Repository(),
+		track,
+	)
+	if err != nil {
+		if rpc.GetErrorCode(err) != rpc.ErrorCodeNotFound {
+			return err
+		}
+		repositoryCommit = nil
+	}
+	if repositoryCommit != nil {
+		tags = make([]string, 0, len(repositoryCommit.Tags))
+		for _, tag := range repositoryCommit.Tags {
+			tagName := tag.Name
+			if len(tagName) != 40 {
+				continue
+			}
+			if _, err := hex.DecodeString(tagName); err != nil {
+				continue
+			}
+			tags = append(tags, tagName)
+		}
+	}
+
 	ghClient, err := getGithubClient(ctx, container)
 	if err != nil {
 		return err
@@ -125,6 +152,7 @@ func push(ctx context.Context, container appflag.Container, eventName string) er
 	if err != nil {
 		return err
 	}
+	var commitName string
 	localModulePin, err := pushService.Push(
 		ctx,
 		moduleIdentity.Owner(),
@@ -138,16 +166,22 @@ func push(ctx context.Context, container appflag.Container, eventName string) er
 		if rpc.GetErrorCode(err) != rpc.ErrorCodeAlreadyExists {
 			return err
 		}
-		if err := tagExistingCommit(ctx, registryProvider, moduleIdentity, currentGitCommit, track); err != nil {
+		if repositoryCommit == nil {
 			return err
 		}
+		commitName = repositoryCommit.Name
+		if err := tagExistingCommit(ctx, registryProvider, moduleIdentity, currentGitCommit, commitName); err != nil {
+			return err
+		}
+	} else {
+		commitName = localModulePin.Commit
 	}
 
-	setOutput(container.Stdout(), commitOutputID, localModulePin.Commit)
+	setOutput(container.Stdout(), commitOutputID, commitName)
 	setOutput(container.Stdout(), commitURLOutputID, fmt.Sprintf(
 		"https://%s/tree/%s",
 		moduleIdentity.IdentityString(),
-		localModulePin.Commit,
+		commitName,
 	))
 
 	return nil
@@ -186,39 +220,6 @@ func tagExistingCommit(
 		return err
 	}
 	return nil
-}
-
-func getTags(
-	ctx context.Context,
-	registryProvider registryv1alpha1apiclient.Provider,
-	moduleIdentity bufmoduleref.ModuleIdentity,
-	track string,
-) ([]string, error) {
-	repositoryCommitService, err := registryProvider.NewRepositoryCommitService(ctx, moduleIdentity.Remote())
-	if err != nil {
-		return nil, err
-	}
-	repositoryCommit, err := repositoryCommitService.GetRepositoryCommitByReference(
-		ctx,
-		moduleIdentity.Owner(),
-		moduleIdentity.Repository(),
-		track,
-	)
-	if err != nil {
-		return nil, err
-	}
-	tags := make([]string, 0, len(repositoryCommit.Tags))
-	for _, tag := range repositoryCommit.Tags {
-		tagName := tag.Name
-		if len(tagName) != 40 {
-			continue
-		}
-		if _, err := hex.DecodeString(tagName); err != nil {
-			continue
-		}
-		tags = append(tags, tagName)
-	}
-	return tags, nil
 }
 
 // getGithubClient returns the github client from the context if one is present or creates a client.

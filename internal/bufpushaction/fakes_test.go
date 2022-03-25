@@ -112,7 +112,9 @@ func (f *fakeRegistryProvider) GetRepositoryCommitByReference(
 		wantReference = testNonMainTrack
 	}
 	assert.Equal(f.t, wantReference, reference)
-	var repositoryCommit registryv1alpha1.RepositoryCommit
+	repositoryCommit := registryv1alpha1.RepositoryCommit{
+		Name: testBsrCommit,
+	}
 	for _, tag := range f.headTags {
 		repositoryCommit.Tags = append(repositoryCommit.Tags, &registryv1alpha1.RepositoryTag{
 			Name: tag,
@@ -233,11 +235,7 @@ func (f *fakeRegistryProvider) CreateRepositoryTag(
 		wantName = testGitCommit2
 	}
 	assert.Equal(f.t, wantName, name)
-	wantCommitName := f.trackName
-	if wantCommitName == "" {
-		wantCommitName = testNonMainTrack
-	}
-	assert.Equal(f.t, wantCommitName, commitName)
+	assert.Equal(f.t, testBsrCommit, commitName)
 	return nil, f.createRepositoryTagErr
 }
 
