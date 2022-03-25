@@ -32,3 +32,28 @@ jobs:
       - name: make-lint
         if: success()
         run: make lint
+  test:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - name: setup-go
+        if: success()
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.18.0'
+      - name: cache
+        if: success()
+        uses: actions/cache@v2
+        with:
+          path: |
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/bin
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/go/pkg/mod
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/include
+            ~/.cache/buf-push-action/${{ runner.os }}/x86_64/versions
+          key: ${{ runner.os }}-buf-push-action-test-${{ hashFiles('**/go.sum', 'make/**') }}
+          restore-keys: |
+            ${{ runner.os }}-buf-push-action-test-
+      - name: make-test
+        if: success()
+        run: make test
