@@ -13,7 +13,6 @@ OPEN_CMD := open
 include make/go/bootstrap.mk
 include make/go/go.mk
 include make/go/license_header.mk
-include make/go/dep_minisign.mk
 
 bufgeneratedeps::
 
@@ -26,18 +25,3 @@ bufgenerateclean:: bufgeneratecleango
 bufgeneratego:
 
 bufgeneratesteps:: bufgeneratego
-
-.PHONY: release
-release: $(MINISIGN)
-	DOCKER_IMAGE=golang:1.17.7-buster bash make/buf-push-action/scripts/release.bash
-
-# Settable
-# This is the release that downloadbinary will download buf-push-action from if it exists.
-DOWNLOADBINARY_RELEASE ?= ""
-# Settable
-# This is the directory where downloadbinary will place buf-push-action.
-DOWNLOADBINARY_OUTPUT_DIR ?= ""
-
-.PHONY: downloadbinary
-downloadbinary:
-	bash make/buf-push-action/scripts/downloadbinary.bash "$(DOWNLOADBINARY_RELEASE)" "$(DOWNLOADBINARY_OUTPUT_DIR)"

@@ -560,11 +560,13 @@ func runCmdTest(t *testing.T, test cmdTest) {
 		}
 		if strings.HasPrefix(line, "::set-output name=") {
 			keyValue := strings.TrimPrefix(line, "::set-output name=")
-			key, value, ok := strings.Cut(keyValue, "::")
-			if !ok {
+			delim := strings.Index(keyValue, "::")
+			if delim == -1 {
 				stdoutLines = append(stdoutLines, line)
 				continue
 			}
+			key := keyValue[:delim]
+			value := keyValue[delim+2:]
 			output[key] = value
 			continue
 		}
