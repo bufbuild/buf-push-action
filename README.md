@@ -22,38 +22,20 @@ jobs:
     steps:
       # Run `git checkout`
       - uses: actions/checkout@v2
-      # Install the `buf` CLI
-      - uses: bufbuild/buf-setup-action@v0.6.0
       # Push module to the BSR
-      - uses: bufbuild/buf-push-action@v1
+      - uses: bufbuild/buf-push-action@v2
         id: push
         with:
           buf_token: ${{ secrets.BUF_TOKEN }}
           track: ${{ github.ref_name }}
-      # Add a commit status with a link to the newly pushed module on BSR
-      - name: post commit status to github
-        if: github.event_name != 'delete'
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          gh api repos/{owner}/{repo}/statuses/${GITHUB_SHA} \
-            -F "state=success" \
-            -F "target_url=${{ steps.push.outputs.commit_url }}" \
-            -F "description=pushed commit ${{ steps.push.outputs.commit }}" \
-            -F "context=buf-push"
 ```
 
 With this configuration, the `buf` CLI pushes the [configured module][buf-yaml] to the BSR upon
 merge using a Buf API token to authenticate with the [Buf Schema Registry][bsr] (BSR).
 
 For instructions on creating a BSR API token, see our [official docs][bsr-token]. Once you've
-created a an API token, you need to create an encrypted [Github Secret][github-secret] for it. In
+created an API token, you need to create an encrypted [Github Secret][github-secret] for it. In
 this example, the API token is set to the `BUF_TOKEN` secret.
-
-## Prerequisites
-
-For `buf-push-action` to run, you need to install the `buf` CLI in the GitHub Actions Runner first.
-We recommend using [`buf-setup-action`][buf-setup] to install it (as in the example above).
 
 ## Configuration
 
@@ -75,10 +57,10 @@ We recommend using [`buf-setup-action`][buf-setup] to install it (as in the exam
 
 ## Common tasks
 
-### Run against input in sub-directory
+### Run against input in subdirectory
 
 Some repositories are structured so that their [`buf.yaml`][buf-yaml] configuration file is defined
-in a sub-directory alongside their Protobuf sources, such as a `proto` directory. Here's an example:
+in a subdirectory alongside their Protobuf sources, such as a `proto` directory. Here's an example:
 
 ```sh
 $ tree
@@ -91,16 +73,14 @@ $ tree
     └── buf.yaml
 ```
 
-In that case, you can target the `proto` sub-directory by setting `input` to `proto`:
+In that case, you can target the `proto` subdirectory by setting `input` to `proto`:
 
 ```yaml
 steps:
   # Run `git checkout`
   - uses: actions/checkout@v2
-  # Install the `buf` CLI
-  - uses: bufbuild/buf-setup-action@v0.6.0
   # Push only the Input in `proto` to the BSR
-  - uses: bufbuild/buf-push-action@v1
+  - uses: bufbuild/buf-push-action@v2
     with:
       input: proto
       buf_token: ${{ secrets.BUF_TOKEN }}
@@ -133,7 +113,7 @@ jobs:
         with:
           against: https://github.com/acme/weather.git#branch=main,ref=HEAD~1,subdir=proto
       # Push the validated module to the BSR
-      - uses: bufbuild/buf-push-action@v1
+      - uses: bufbuild/buf-push-action@v2
         with:
           buf_token: ${{ secrets.BUF_TOKEN }}
 ```
