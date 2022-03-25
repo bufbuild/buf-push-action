@@ -31,10 +31,6 @@ bufgeneratesteps:: bufgeneratego
 release: $(MINISIGN)
 	DOCKER_IMAGE=golang:1.17.7-buster bash make/buf-push-action/scripts/release.bash
 
-.PHONY: directoryhash
-directoryhash:
-	@ bash make/buf-push-action/scripts/directoryhash.bash .
-
 # Settable
 # This is the release that downloadbinary will download buf-push-action from if it exists.
 DOWNLOADBINARY_RELEASE ?= ""

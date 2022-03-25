@@ -16,7 +16,7 @@ jobs:
         if: success()
         uses: actions/setup-go@v2
         with:
-          go-version: 1.17.7
+          go-version: '1.18.0'
       - name: cache
         if: success()
         uses: actions/cache@v2
@@ -41,7 +41,7 @@ jobs:
         if: success()
         uses: actions/setup-go@v2
         with:
-          go-version: 1.17.7
+          go-version: '1.18.0'
       - name: cache
         if: success()
         uses: actions/cache@v2
@@ -57,61 +57,3 @@ jobs:
       - name: make-test
         if: success()
         run: make test
-  action-test:
-    runs-on: ubuntu-20.04
-    env:
-      TEST_BSR_COMMIT: feedfacecafefeedfacecafefeedface
-    steps:
-      - uses: actions/checkout@v2
-      - name: setup test
-        shell: bash
-        run: |
-          mkdir -p .tmp/bin .tmp/test
-          cp test/buf.bash .tmp/bin/buf
-          chmod +x .tmp/bin/buf
-          echo '[
-                {
-                  "args": "push --track anytrack --help",
-                  "exit_code": "0",
-                  "stdout": "Usage:\n  buf push <source> [flags]\n  ...\n",
-                  "stderr": ""
-                },
-                {
-                  "args": "beta registry commit get buf.build/example/repo:fake-track --format json",
-                  "exit_code": "1",
-                  "stdout": "",
-                  "stderr": "track does not exist"
-                },
-                {
-                  "args": "push --track fake-track --tag ${{ github.sha }} test/proto",
-                  "exit_code": "0",
-                  "stdout": "${{ env.TEST_BSR_COMMIT }}",
-                  "stderr": ""
-                }
-          ]' > .tmp/test/buf.expectations
-          echo "${PWD}/.tmp/bin" >> "${GITHUB_PATH}"
-      - name: run action
-        id: run-action
-        uses: ./
-        with:
-          buf_token: fake-buf-token
-          input: test/proto
-          track: fake-track
-        env:
-          WANT_BUF_TOKEN: fake-buf-token
-          WANT_ARGS: push --tag ${{ github.sha }} test/proto --track fake-track
-      - name: check output
-        env:
-          GOT_COMMIT: ${{ steps.run-action.outputs.commit }}
-          GOT_COMMIT_URL: ${{ steps.run-action.outputs.commit_url }}
-        shell: bash
-        run: |
-          set -e
-          if [[ "${GOT_COMMIT}" != "${TEST_BSR_COMMIT}" ]]; then
-            echo "Expected commit ${TEST_BSR_COMMIT} but got ${GOT_COMMIT}"
-            exit 1
-          fi
-          if [[ "${GOT_COMMIT_URL}" != "https://buf.build/example/repo/tree/${TEST_BSR_COMMIT}" ]]; then
-            echo "Expected commit url ${TEST_BSR_COMMIT_URL} but got ${GOT_COMMIT_URL}"
-            exit 1
-          fi
