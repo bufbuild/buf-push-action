@@ -69,6 +69,11 @@ func NewRootCommand(name string) *appcmd.Command {
 	}
 }
 
+// githubClient is implemented by *github.Client
+type githubClient interface {
+	CompareCommits(ctx context.Context, base, head string) (github.CompareCommitsStatus, error)
+}
+
 func runPush(ctx context.Context, container appflag.Container) error {
 	input := container.Arg(0)
 	track := container.Arg(1)
@@ -90,7 +95,7 @@ func runPush(ctx context.Context, container appflag.Container) error {
 	if len(repoParts) != 2 {
 		return errors.New("a github repository was not provided in the format owner/repo")
 	}
-	githubClient, err := github.NewClient(ctx, container.Env(githubTokenKey), "buf-push-action", "", githubRepository)
+	ghClient, err := github.NewClient(ctx, container.Env(githubTokenKey), "buf-push-action", "", githubRepository)
 	if err != nil {
 		return err
 	}
@@ -110,7 +115,7 @@ func runPush(ctx context.Context, container appflag.Container) error {
 		currentGitCommit,
 		defaultBranch,
 		refName,
-		githubClient,
+		ghClient,
 		container.Stdout(),
 		&bufRunner{
 			bufToken: container.Env(bufTokenKey),
@@ -195,7 +200,7 @@ func push(
 	currentGitCommit string,
 	defaultBranch string,
 	refName string,
-	githubClient github.Client,
+	ghClient githubClient,
 	stdout io.Writer,
 	runner commandRunner,
 ) error {
@@ -226,7 +231,7 @@ func push(
 		if _, err := hex.DecodeString(tag); err != nil {
 			continue
 		}
-		status, err := githubClient.CompareCommits(ctx, tag, currentGitCommit)
+		status, err := ghClient.CompareCommits(ctx, tag, currentGitCommit)
 		if err != nil {
 			if github.IsNotFoundError(err) {
 				continue

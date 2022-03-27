@@ -108,9 +108,9 @@ func (t *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler(w, r)
 }
 
-func (t *testServer) client(ctx context.Context) *githubClient {
+func (t *testServer) client(ctx context.Context) *Client {
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, t.server.Client())
-	client, err := newGithubClient(ctx, testGithubToken, testUserAgent, t.server.URL, testGithubRepository)
+	client, err := NewClient(ctx, testGithubToken, testUserAgent, t.server.URL, testGithubRepository)
 	assert.Equal(t.t, nil, err)
 	return client
 }
