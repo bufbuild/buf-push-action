@@ -34,9 +34,6 @@ outputs:
 runs:
   using: composite
   steps:
-    - id: mask buf_token
-      shell: bash
-      run: echo "::add-mask::${{ inputs.buf_token }}"
     - id: cache-setup
       shell: bash
       working-directory: ${{ github.action_path }}
