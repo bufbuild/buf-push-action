@@ -63,7 +63,7 @@ runs:
         "${{ steps.cache-setup.outputs.path }}/buf-push-action" push \
           "${{ inputs.input }}" \
           "${{ inputs.track }}" \
-          "${{ inputs.default-branch }}" \
+          "${{ inputs.default_branch }}" \
           "${{ github.ref_name }}" \
           "${{ github.sha }}"
     - name: delete track
@@ -77,5 +77,5 @@ runs:
         "${{ steps.cache-setup.outputs.path }}/buf-push-action" delete-track \
           "${{ inputs.input }}" \
           "${{ inputs.track }}" \
-          "${{ inputs.default-branch }}" \
+          "${{ inputs.default_branch }}" \
           "${{ github.event.ref }}"
