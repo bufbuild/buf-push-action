@@ -2,10 +2,7 @@ name: integration
 on: [ push, workflow_dispatch, delete ]
 jobs:
   action-test:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       statuses: write
@@ -20,7 +17,7 @@ jobs:
             REF="${{ github.event.ref }}"
           fi
           TRACK_NAME="$(
-            echo "$REF-${{ runner.os }}" | 
+            echo "$REF" |
               sed 's/[^a-zA-Z0-9]/-/g' | 
               tr '[:upper:]' '[:lower:]'
           )"
