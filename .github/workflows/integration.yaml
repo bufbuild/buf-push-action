@@ -1,0 +1,45 @@
+name: integration
+on: [ push, workflow_dispatch, delete ]
+jobs:
+  action-test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      statuses: write
+    steps:
+      - name: checkout
+        uses: actions/checkout@v2
+      - id: track-name
+        shell: bash
+        run: |
+          REF="${{ github.ref_name }}"
+          if [[ "${{ github.event_name }}" == "delete" ]]; then
+            REF="${{ github.event.ref }}"
+          fi
+          TRACK_NAME="$(
+            echo "$REF-${{ runner.os }}" | 
+              sed 's/[^a-zA-Z0-9]/-/g' | 
+              tr '[:upper:]' '[:lower:]'
+          )"
+          echo "::set-output name=track-name::$TRACK_NAME"
+      - uses: ./
+        id: buf-push
+        with:
+          buf_token: ${{ secrets.BUFBOTPUBLIC_TOKEN }}
+          input: ./testing/proto
+          track: ${{ steps.track-name.outputs.track-name }}
+      - name: post commit status to github
+        env:
+          COMMIT: ${{ steps.buf-push.outputs.commit }}
+          COMMIT_URL: ${{ steps.buf-push.outputs.commit_url }}
+          GITHUB_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          gh api repos/{owner}/{repo}/statuses/${GITHUB_SHA} \
+            -F "state=success" \
+            -F "target_url=${COMMIT_URL}" \
+            -F "description=pushed commit ${COMMIT}" \
+            -F "context=buf-push"
