@@ -34,6 +34,9 @@ outputs:
 runs:
   using: composite
   steps:
+    - id: mask buf_token
+      shell: bash
+      run: echo "::add-mask::${{ inputs.buf_token }}"
     - id: cache-setup
       shell: bash
       working-directory: ${{ github.action_path }}
@@ -53,7 +56,7 @@ runs:
         DOWNLOADBINARY_OUTPUT_DIR: ${{ steps.cache-setup.outputs.path }}
       run: make downloadbinary
     - name: push
-      if: github.event_name != 'delete'
+      if: (github.event_name == 'push' && github.ref_type == 'branch' ) || github.event_name != 'workflow_dispatch'
       id: push
       shell: bash
       env:
@@ -63,9 +66,9 @@ runs:
         "${{ steps.cache-setup.outputs.path }}/buf-push-action" push \
           "${{ inputs.input }}" \
           "${{ inputs.track }}" \
-          "${{ github.sha }}" \
           "${{ inputs.default-branch }}" \
-          "${{ github.ref_name }}"
+          "${{ github.ref_name }}" \
+          "${{ github.sha }}"
     - name: delete track
       if: github.event_name == 'delete' && github.event.ref_type == 'branch'
       id: delete-track
@@ -78,4 +81,4 @@ runs:
           "${{ inputs.input }}" \
           "${{ inputs.track }}" \
           "${{ inputs.default-branch }}" \
-          "${{ github.ref_name }}"
+          "${{ github.event.ref }}"

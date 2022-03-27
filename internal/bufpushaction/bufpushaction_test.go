@@ -17,433 +17,686 @@ package bufpushaction
 import (
 	"bytes"
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
+	"github.com/bufbuild/buf/private/pkg/app"
+	"github.com/bufbuild/buf/private/pkg/app/appcmd"
+	"github.com/bufbuild/buf/private/pkg/rpc"
 	gogithub "github.com/google/go-github/v42/github"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 const (
-	testGitCommit1         = "fa1afe1cafefa1afe1cafefa1afe1cafefa1afe1"
-	testGitCommit2         = "beefcafebeefcafebeefcafebeefcafebeefcafe"
-	testBsrCommit          = "01234567890123456789012345678901"
-	testModuleName         = "buf.build/foo/bar"
-	testInput              = "path/to/proto"
-	testMainTrack          = "main"
-	testModuleMainTrack    = "buf.build/foo/bar:main"
-	testNonMainTrack       = "non-main"
-	testModuleNonMainTrack = "buf.build/foo/bar:non-main"
+	testGitCommit1   = "fa1afe1cafefa1afe1cafefa1afe1cafefa1afe1"
+	testGitCommit2   = "beefcafebeefcafebeefcafebeefcafebeefcafe"
+	testBsrCommit    = "01234567890123456789012345678901"
+	testModuleName   = "buf.build/foo/bar"
+	testMainTrack    = "main"
+	testNonMainTrack = "non-main"
+	testOwner        = "foo"
+	testRepository   = "bar"
+	testAddress      = "buf.build"
+	testRepositoryID = "6b36a5d1-b845-4a97-885b-adbf52883819"
+	testEmpty        = "_empty_value"
 )
 
-func TestPush(t *testing.T) {
-	t.Run("re-push the current main track head", func(t *testing.T) {
-		runPushTest(t, pushTest{
-			track: testMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				getTagsRun(t, testModuleMainTrack, testGitCommit1),
+var (
+	testNotFoundErr      = rpc.NewNotFoundError("testNotFoundErr")
+	testAlreadyExistsErr = rpc.NewAlreadyExistsError("testAlreadyExistsErr")
+)
+
+type cmdTest struct {
+	subCommand       string
+	provider         fakeRegistryProvider
+	config           string
+	env              map[string]string
+	errMsg           string
+	stdout           []string
+	outputs          map[string]string
+	githubClient     fakeGithubClient
+	input            string
+	track            string
+	defaultBranch    string
+	refName          string
+	currentGitCommit string
+}
+
+func TestPush2(t *testing.T) {
+	successOutputs := map[string]string{
+		commitOutputID:    testBsrCommit,
+		commitURLOutputID: fmt.Sprintf("https://%s/tree/%s", testModuleName, testBsrCommit),
+	}
+	subCommand := "push"
+	t.Run("happy path", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			outputs:    successOutputs,
+		})
+	})
+
+	t.Run("input path doesn't exist", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			input:      "path/does/not/exist",
+			errMsg:     "path/does/not/exist: does not exist",
+		})
+	})
+
+	t.Run("module has no files", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			input:      writeConfigFile(t, v1Config(testModuleName)),
+			errMsg:     "module has no files",
+		})
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			input:      testEmpty,
+			errMsg:     "input is empty",
+		})
+	})
+
+	t.Run("empty track", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			track:      testEmpty,
+			errMsg:     "track is empty",
+		})
+	})
+
+	t.Run("empty default_branch", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand:    subCommand,
+			defaultBranch: testEmpty,
+			errMsg:        "default_branch is empty",
+		})
+	})
+
+	t.Run("empty ref_name", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			refName:    testEmpty,
+			errMsg:     "github.ref_name is empty",
+		})
+	})
+
+	t.Run("empty current_git_commit", func(t *testing.T) {
+		// This should never happen because it is set by GitHub Actions.
+		runCmdTest(t, cmdTest{
+			subCommand:       subCommand,
+			currentGitCommit: testEmpty,
+			errMsg:           "github.sha is empty",
+		})
+	})
+
+	t.Run("empty github_token", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			env: map[string]string{
+				githubTokenKey: "",
 			},
-			compareCommitRuns: []fakeCompareCommits{
-				{
-					expectBase: testGitCommit1,
-					expectHead: testGitCommit1,
-					status:     github.CompareCommitsStatusIdentical,
+			errMsg: "github_token is empty",
+		})
+	})
+
+	t.Run("no BUF_TOKEN", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			env: map[string]string{
+				bufTokenKey: "",
+			},
+			errMsg: "buf_token is empty",
+		})
+	})
+
+	t.Run("no GITHUB_REPOSITORY", func(t *testing.T) {
+		// This should never happen because it is set by GitHub Actions.
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			env: map[string]string{
+				githubRepositoryKey: "",
+			},
+			errMsg: "GITHUB_REPOSITORY is empty",
+		})
+	})
+
+	t.Run("unparseable GITHUB_API_URL", func(t *testing.T) {
+		// This should never happen because it is set by GitHub Actions.
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			env: map[string]string{
+				githubAPIURLKey: ":foo",
+			},
+			errMsg: `parse ":foo": missing protocol scheme`,
+		})
+	})
+
+	t.Run("invalid GITHUB_REPOSITORY format", func(t *testing.T) {
+		// This should never happen because it is set by GitHub Actions.
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			env: map[string]string{
+				githubRepositoryKey: "invalid",
+			},
+			errMsg: "GITHUB_REPOSITORY is not in the format owner/repo",
+		})
+	})
+
+	t.Run("pushing to main track from a non-default branch", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand:    subCommand,
+			track:         testMainTrack,
+			defaultBranch: testNonMainTrack,
+			refName:       testMainTrack,
+			errMsg:        "cannot push to main track from a non-default branch",
+		})
+	})
+
+	t.Run("error from NewRepositoryCommitService", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			provider: fakeRegistryProvider{
+				newRepositoryCommitServiceErr: assert.AnError,
+			},
+			errMsg: assert.AnError.Error(),
+		})
+	})
+
+	t.Run("GetRepositoryCommitByReference returns non-NotFound error", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			provider: fakeRegistryProvider{
+				getRepositoryCommitByReferenceErr: assert.AnError,
+			},
+			errMsg: assert.AnError.Error(),
+		})
+	})
+
+	t.Run("GetRepositoryCommitByReference returns NotFound error", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			provider: fakeRegistryProvider{
+				getRepositoryCommitByReferenceErr: testNotFoundErr,
+			},
+			outputs: successOutputs,
+		})
+	})
+
+	t.Run("After GetRepositoryCommitByReference returns NotFound error", func(t *testing.T) {
+		t.Run("Push returns an AlreadyExists error", func(t *testing.T) {
+			runCmdTest(t, cmdTest{
+				subCommand: subCommand,
+				provider: fakeRegistryProvider{
+					getRepositoryCommitByReferenceErr: testNotFoundErr,
+					pushErr:                           testAlreadyExistsErr,
+				},
+				errMsg: testAlreadyExistsErr.Error(),
+			})
+		})
+	})
+
+	t.Run("Handles tags that aren't git commits", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			provider: fakeRegistryProvider{
+				headTags: []string{"some", "other", "tags", strings.Repeat("z", 40)},
+			},
+			outputs: successOutputs,
+		})
+	})
+
+	t.Run("CompareCommits returns NotFound error", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						err: &gogithub.ErrorResponse{
+							Response: &http.Response{
+								StatusCode: http.StatusNotFound,
+							},
+						},
+					},
 				},
 			},
-			expectStdout: []string{
-				"::notice::Skipping because the current git commit is already the head of track main",
-			},
+			outputs: successOutputs,
 		})
 	})
 
-	t.Run("old buf version", func(t *testing.T) {
-		runPushTest(t, pushTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(false),
+	t.Run("CompareCommits returns a non-NotFound error", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						err:        assert.AnError,
+					},
+				},
 			},
-			errorAssertion: func(err error) {
-				assert.Equal(t, errNoTrackSupport, err)
-			},
+			errMsg: assert.AnError.Error(),
 		})
 	})
 
-	t.Run("re-push the current non-main track head", func(t *testing.T) {
-		runPushTest(t, pushTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				getTagsRun(t, testModuleNonMainTrack, testGitCommit1),
+	t.Run("CompareCommits returns identical", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						status:     github.CompareCommitsStatusIdentical,
+					},
+				},
 			},
-			compareCommitRuns: []fakeCompareCommits{
-				compareCommitsRun(testGitCommit1, testGitCommit1, github.CompareCommitsStatusIdentical),
-			},
-			expectStdout: []string{
+			stdout: []string{
 				"::notice::Skipping because the current git commit is already the head of track non-main",
 			},
 		})
 	})
 
-	t.Run("push a commit behind head", func(t *testing.T) {
-		runPushTest(t, pushTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				getTagsRun(t, testModuleNonMainTrack, testGitCommit2),
+	t.Run("CompareCommits returns behind", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						status:     github.CompareCommitsStatusBehind,
+					},
+				},
 			},
-			compareCommitRuns: []fakeCompareCommits{
-				compareCommitsRun(testGitCommit2, testGitCommit1, github.CompareCommitsStatusBehind),
-			},
-			expectStdout: []string{
+			stdout: []string{
 				"::notice::Skipping because the current git commit is behind the head of track non-main",
 			},
 		})
 	})
 
-	t.Run("push a commit ahead of head", func(t *testing.T) {
-		runPushTest(t, pushTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				getTagsRun(t, testModuleNonMainTrack, testGitCommit2),
-				{
-					expectArgs: []string{"push", "--track", testNonMainTrack, "--tag", testGitCommit1, testInput},
-					stdout:     testBsrCommit,
+	t.Run("CompareCommits returns diverged", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						status:     github.CompareCommitsStatusDiverged,
+					},
 				},
 			},
-			compareCommitRuns: []fakeCompareCommits{
-				compareCommitsRun(testGitCommit2, testGitCommit1, github.CompareCommitsStatusAhead),
+			stdout: []string{
+				"::notice::The current git commit is diverged from the head of track non-main",
 			},
-			expectStdout: []string{
-				fmt.Sprintf("::set-output name=commit::%s", testBsrCommit),
-				fmt.Sprintf("::set-output name=commit_url::%s", bsrCommitURL(testModuleName, testBsrCommit)),
-			},
+			outputs: successOutputs,
 		})
 	})
 
-	t.Run("custom default branch", func(t *testing.T) {
-		runPushTest(t, pushTest{
-			track:         testNonMainTrack,
-			defaultBranch: testNonMainTrack,
-			refName:       testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				getTagsRun(t, testModuleMainTrack, testGitCommit2),
-				{
-					expectArgs: []string{"push", "--track", testMainTrack, "--tag", testGitCommit1, testInput},
-					stdout:     testBsrCommit,
+	t.Run("CompareCommits returns unknown status", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			githubClient: fakeGithubClient{
+				fakeCompareCommits: []fakeCompareCommits{
+					{
+						expectBase: testGitCommit1,
+						expectHead: testGitCommit2,
+						status:     0,
+					},
 				},
 			},
-			compareCommitRuns: []fakeCompareCommits{
-				compareCommitsRun(testGitCommit2, testGitCommit1, github.CompareCommitsStatusAhead),
-			},
-			expectStdout: []string{
-				fmt.Sprintf("::set-output name=commit::%s", testBsrCommit),
-				fmt.Sprintf("::set-output name=commit_url::%s", bsrCommitURL(testModuleName, testBsrCommit)),
-			},
+			errMsg: "unexpected status: unknown(0)",
 		})
 	})
 
-	t.Run("custom default branch push to main", func(t *testing.T) {
-		runPushTest(t, pushTest{
-			track:         testMainTrack,
-			defaultBranch: testNonMainTrack,
-			refName:       testMainTrack,
-			errorAssertion: func(err error) {
-				assert.EqualError(t, err, "cannot push to main track from a non-default branch")
+	t.Run("NewPushService returns an error", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			provider: fakeRegistryProvider{
+				newPushServiceErr: assert.AnError,
 			},
+			errMsg: assert.AnError.Error(),
 		})
 	})
 
-	t.Run("skips non-git tags", func(t *testing.T) {
-		shortTag := "some-random-tag"
-		nonHexTag := strings.Repeat("g", 40)
-		runPushTest(t, pushTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				getTagsRun(t, testModuleNonMainTrack, shortTag, nonHexTag),
-				{
-					expectArgs: []string{"push", "--track", testNonMainTrack, "--tag", testGitCommit1, testInput},
-					stdout:     testBsrCommit,
-				},
+	t.Run("Push returns an AlreadyExists error", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			provider: fakeRegistryProvider{
+				pushErr: testAlreadyExistsErr,
 			},
-			expectStdout: []string{
-				fmt.Sprintf("::set-output name=commit::%s", testBsrCommit),
-				fmt.Sprintf("::set-output name=commit_url::%s", bsrCommitURL(testModuleName, testBsrCommit)),
-			},
+			outputs: successOutputs,
 		})
 	})
 
-	t.Run("bsr repository does not exist", func(t *testing.T) {
-		repoNotFoundMessage := fmt.Sprintf("Failure: repository %q was not found", testModuleName)
-		runPushTest(t, pushTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				{
-					expectArgs: []string{"beta", "registry", "commit", "get", testModuleNonMainTrack, "--format", "json"},
-					stderr:     fmt.Sprintf("Failure: %q does not exist", testModuleName),
-					err:        assert.AnError,
-				},
-				{
-					expectArgs: []string{"push", "--track", testNonMainTrack, "--tag", testGitCommit1, testInput},
-					stderr:     repoNotFoundMessage,
-					err:        assert.AnError,
-				},
+	t.Run("Push returns a non-AlreadyExists error", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			provider: fakeRegistryProvider{
+				pushErr: assert.AnError,
 			},
-			errorAssertion: func(err error) {
-				require.EqualError(t, err, repoNotFoundMessage)
-			},
+			errMsg: assert.AnError.Error(),
 		})
 	})
 
-	t.Run("push commit with same digest as head", func(t *testing.T) {
-		dupContentMessage := "The latest commit has the same content; not creating a new commit."
-		runPushTest(t, pushTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				getTagsRun(t, testModuleNonMainTrack, testGitCommit2),
-				{
-					expectArgs: []string{"push", "--track", testNonMainTrack, "--tag", testGitCommit1, testInput},
-					stderr:     dupContentMessage,
+	t.Run("After Push returns an AlreadyExists error", func(t *testing.T) {
+		t.Run("NewRepositoryService returns an error", func(t *testing.T) {
+			runCmdTest(t, cmdTest{
+				subCommand: subCommand,
+				provider: fakeRegistryProvider{
+					pushErr:                 testAlreadyExistsErr,
+					newRepositoryServiceErr: assert.AnError,
 				},
-				{
-					expectArgs: []string{"beta", "registry", "commit", "get", testModuleNonMainTrack, "--format", "json"},
-					stdout:     buildCommitJSON(t, testBsrCommit),
-				},
-			},
-			compareCommitRuns: []fakeCompareCommits{
-				compareCommitsRun(testGitCommit2, testGitCommit1, github.CompareCommitsStatusAhead),
-			},
-			expectStdout: []string{
-				fmt.Sprintf("::notice::%s", dupContentMessage),
-				fmt.Sprintf("::set-output name=commit::%s", testBsrCommit),
-				fmt.Sprintf("::set-output name=commit_url::%s", bsrCommitURL(testModuleName, testBsrCommit)),
-			},
+				errMsg: assert.AnError.Error(),
+			})
 		})
-	})
 
-	t.Run("tagged git commit not found on github", func(t *testing.T) {
-		goGithubNotFoundError := &gogithub.ErrorResponse{
-			Response: &http.Response{
-				StatusCode: http.StatusNotFound,
-				Request:    &http.Request{},
-			},
-		}
-		runPushTest(t, pushTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				getTagsRun(t, testModuleNonMainTrack, testGitCommit2),
-				{
-					expectArgs: []string{"push", "--track", testNonMainTrack, "--tag", testGitCommit1, testInput},
-					stdout:     testBsrCommit,
+		t.Run("GetRepositoryByFullName returns a NotFound error", func(t *testing.T) {
+			runCmdTest(t, cmdTest{
+				subCommand: subCommand,
+				provider: fakeRegistryProvider{
+					pushErr:                    testAlreadyExistsErr,
+					getRepositoryByFullNameErr: testNotFoundErr,
 				},
-			},
-			compareCommitRuns: []fakeCompareCommits{
-				{
-					expectBase: testGitCommit2,
-					expectHead: testGitCommit1,
-					err:        goGithubNotFoundError,
+				errMsg: `a repository named "buf.build/foo/bar" does not exist`,
+			})
+		})
+
+		t.Run("GetRepositoryByFullName returns a non-NotFound error", func(t *testing.T) {
+			runCmdTest(t, cmdTest{
+				subCommand: subCommand,
+				provider: fakeRegistryProvider{
+					pushErr:                    testAlreadyExistsErr,
+					getRepositoryByFullNameErr: assert.AnError,
 				},
-			},
-			expectStdout: []string{
-				fmt.Sprintf("::set-output name=commit::%s", testBsrCommit),
-				fmt.Sprintf("::set-output name=commit_url::%s", bsrCommitURL(testModuleName, testBsrCommit)),
-			},
+				errMsg: assert.AnError.Error(),
+			})
+		})
+
+		t.Run("NewRepositoryTagService returns an error", func(t *testing.T) {
+			runCmdTest(t, cmdTest{
+				subCommand: subCommand,
+				provider: fakeRegistryProvider{
+					pushErr:                    testAlreadyExistsErr,
+					newRepositoryTagServiceErr: assert.AnError,
+				},
+				errMsg: assert.AnError.Error(),
+			})
+		})
+
+		t.Run("CreateRepositoryTag returns an error", func(t *testing.T) {
+			runCmdTest(t, cmdTest{
+				subCommand: subCommand,
+				provider: fakeRegistryProvider{
+					pushErr:                testAlreadyExistsErr,
+					createRepositoryTagErr: assert.AnError,
+				},
+				errMsg: assert.AnError.Error(),
+			})
+		})
+
+		t.Run("CreateRepositoryTag returns a NotFound error", func(t *testing.T) {
+			runCmdTest(t, cmdTest{
+				subCommand: subCommand,
+				provider: fakeRegistryProvider{
+					pushErr:                testAlreadyExistsErr,
+					createRepositoryTagErr: testNotFoundErr,
+				},
+				errMsg: "buf.build/foo/bar:01234567890123456789012345678901 does not exist",
+			})
+		})
+
+		t.Run("CreateRepositoryTag returns an AlreadyExists error", func(t *testing.T) {
+			runCmdTest(t, cmdTest{
+				subCommand: subCommand,
+				provider: fakeRegistryProvider{
+					pushErr:                testAlreadyExistsErr,
+					createRepositoryTagErr: testAlreadyExistsErr,
+				},
+				errMsg: "buf.build/foo/bar:beefcafebeefcafebeefcafebeefcafebeefcafe already exists with different content",
+			})
 		})
 	})
 }
 
 func TestDeleteTrack(t *testing.T) {
+	subCommand := "delete-track"
+
+	t.Run("happy path", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+		})
+	})
+
+	t.Run("input path doesn't exist", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			input:      "path/does/not/exist",
+			errMsg:     "path/does/not/exist: does not exist",
+		})
+	})
+
+	t.Run("input path is empty dir", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			input:      t.TempDir(),
+			errMsg:     "module identity not found in config",
+		})
+	})
+
+	t.Run("invalid buf.yaml", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			input:      writeConfigFile(t, "invalid config"),
+			errMsg:     "could not unmarshal as YAML",
+		})
+	})
+
+	t.Run("empty input", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			input:      testEmpty,
+			errMsg:     "input is empty",
+		})
+	})
+
+	t.Run("empty track", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			track:      testEmpty,
+			errMsg:     "track is empty",
+		})
+	})
+
+	t.Run("empty default_branch", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand:    subCommand,
+			defaultBranch: testEmpty,
+			errMsg:        "default_branch is empty",
+		})
+	})
+
+	t.Run("empty ref_name", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			refName:    testEmpty,
+			errMsg:     "github.ref_name is empty",
+		})
+	})
+
 	t.Run("main track", func(t *testing.T) {
-		runDeleteTrackTest(t, deleteTrackTest{
-			track:        testMainTrack,
-			expectStdout: []string{"::notice::Skipping because the main track can not be deleted from BSR"},
-		})
-	})
-	t.Run("old buf version", func(t *testing.T) {
-		runDeleteTrackTest(t, deleteTrackTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(false),
-			},
-			errorAssertion: func(err error) {
-				assert.Equal(t, errNoTrackSupport, err)
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			track:      testMainTrack,
+			stdout: []string{
+				"::notice::Skipping because the main track can not be deleted from BSR",
 			},
 		})
 	})
-	t.Run("success", func(t *testing.T) {
-		runDeleteTrackTest(t, deleteTrackTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				{
-					expectArgs: []string{"beta", "registry", "track", "delete", testModuleNonMainTrack, "--force"},
-				},
+
+	t.Run("NewRepositoryTrackService returns an error", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			provider: fakeRegistryProvider{
+				newRepositoryTrackServiceErr: assert.AnError,
 			},
+			errMsg: assert.AnError.Error(),
 		})
 	})
-	t.Run("error", func(t *testing.T) {
-		runDeleteTrackTest(t, deleteTrackTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				{
-					expectArgs: []string{"beta", "registry", "track", "delete", testModuleNonMainTrack, "--force"},
-					stderr:     "stderr message",
-					err:        assert.AnError,
-				},
+
+	t.Run("DeleteRepositoryTrackByName returns a NotFound error", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			provider: fakeRegistryProvider{
+				deleteRepositoryTrackByNameErr: testNotFoundErr,
 			},
-			errorAssertion: func(err error) {
-				assert.EqualError(t, err, "stderr message")
-			},
+			errMsg: `"buf.build/foo/bar:non-main" does not exist`,
 		})
 	})
-	t.Run("emit stderr on success", func(t *testing.T) {
-		runDeleteTrackTest(t, deleteTrackTest{
-			track: testNonMainTrack,
-			bufRuns: []fakeCommandRunnerRun{
-				trackHelpRun(true),
-				{
-					expectArgs: []string{"beta", "registry", "track", "delete", testModuleNonMainTrack, "--force"},
-					stderr:     "stderr message",
-				},
+
+	t.Run("DeleteRepositoryTrackByName returns a non-NotFound error", func(t *testing.T) {
+		runCmdTest(t, cmdTest{
+			subCommand: subCommand,
+			provider: fakeRegistryProvider{
+				deleteRepositoryTrackByNameErr: assert.AnError,
 			},
-			expectStdout: []string{"::notice::stderr message"},
+			errMsg: assert.AnError.Error(),
 		})
 	})
 }
 
-type pushTest struct {
-	track             string
-	defaultBranch     string
-	refName           string
-	bufRuns           []fakeCommandRunnerRun
-	compareCommitRuns []fakeCompareCommits
-	expectStdout      []string
-	errorAssertion    func(err error)
+func resolveTestString(s string, defaultValue string) string {
+	switch s {
+	case "":
+		return defaultValue
+	case testEmpty:
+		return ""
+	default:
+		return s
+	}
 }
 
-func runPushTest(t *testing.T, pt pushTest) {
-	ctx := context.Background()
-	var stdout bytes.Buffer
-	githubClient := fakeGithubClient{
-		t:                  t,
-		fakeCompareCommits: pt.compareCommitRuns,
+func runCmdTest(t *testing.T, test cmdTest) {
+	var stdout, stderr bytes.Buffer
+	test.provider.t = t
+	test.githubClient.t = t
+	test.config = resolveTestString(test.config, v1Config(testModuleName))
+	test.input = resolveTestString(test.input, "./testdata/success")
+	test.track = resolveTestString(test.track, testNonMainTrack)
+	test.defaultBranch = resolveTestString(test.defaultBranch, testMainTrack)
+	test.refName = resolveTestString(test.refName, testMainTrack)
+	test.currentGitCommit = resolveTestString(test.currentGitCommit, testGitCommit2)
+	env := test.env
+	defaultEnv := map[string]string{
+		bufTokenKey:         "buf-token",
+		githubTokenKey:      "github-token",
+		githubRepositoryKey: "github-owner/github-repo",
+		githubAPIURLKey:     "https://api.github.com",
 	}
-	cmdRunner := fakeCommandRunner{
-		t:    t,
-		runs: pt.bufRuns,
+	if env == nil {
+		env = make(map[string]string)
 	}
-	defaultBranch := pt.defaultBranch
-	if defaultBranch == "" {
-		defaultBranch = "main"
-	}
-	refName := pt.refName
-	if refName == "" {
-		refName = "main"
-	}
-	err := push(
-		ctx,
-		testInput,
-		pt.track,
-		testModuleName,
-		testGitCommit1,
-		defaultBranch,
-		refName,
-		&githubClient,
-		&stdout,
-		&cmdRunner,
-	)
-	if pt.errorAssertion != nil {
-		pt.errorAssertion(err)
-	} else {
-		assert.NoError(t, err)
-	}
-	expectStdout := strings.Join(pt.expectStdout, "\n")
-	assert.Equal(t, expectStdout, strings.TrimSpace(stdout.String()), "stdout")
-	assert.Empty(t, githubClient.fakeCompareCommits, "missed compareCommit expectations")
-	assert.Empty(t, cmdRunner.runs, "missed bufRunner expectations")
-}
-
-type deleteTrackTest struct {
-	track          string
-	bufRuns        []fakeCommandRunnerRun
-	expectStdout   []string
-	errorAssertion func(err error)
-}
-
-func runDeleteTrackTest(t *testing.T, dt deleteTrackTest) {
-	ctx := context.Background()
-	var stdout bytes.Buffer
-	cmdRunner := fakeCommandRunner{
-		t:    t,
-		runs: dt.bufRuns,
-	}
-	err := deleteTrack(ctx, dt.track, testModuleName, "main", "main", &stdout, &cmdRunner)
-	if dt.errorAssertion != nil {
-		dt.errorAssertion(err)
-	} else {
-		assert.NoError(t, err)
-	}
-	expectStdout := strings.Join(dt.expectStdout, "\n")
-	assert.Equal(t, expectStdout, strings.TrimSpace(stdout.String()), "stdout")
-	assert.Empty(t, cmdRunner.runs, "missed bufRunner expectations")
-}
-
-func trackHelpRun(ok bool) fakeCommandRunnerRun {
-	args := []string{"push", "--track", "anytrack", "--help"}
-	if ok {
-		return fakeCommandRunnerRun{
-			expectArgs: args,
-			stdout:     "fake usage...",
+	for k, v := range defaultEnv {
+		if _, ok := env[k]; !ok {
+			env[k] = v
 		}
 	}
-	return fakeCommandRunnerRun{
-		expectArgs: args,
-		stderr:     "fake usage...\nerror: unknown flag: --track",
-		err:        assert.AnError,
+	if test.provider.headTags == nil {
+		test.provider.headTags = []string{testGitCommit1}
 	}
-}
-
-func getTagsRun(t *testing.T, trackName string, tags ...string) fakeCommandRunnerRun {
-	return fakeCommandRunnerRun{
-		expectArgs: []string{"beta", "registry", "commit", "get", trackName, "--format", "json"},
-		stdout:     buildCommitJSON(t, "", tags...),
-	}
-}
-
-func buildCommitJSON(t *testing.T, commit string, tags ...string) string {
-	tagMaps := make([]map[string]interface{}, len(tags))
-	for i, tag := range tags {
-		tagMaps[i] = map[string]interface{}{
-			"name": tag,
+	if len(test.githubClient.fakeCompareCommits) == 0 {
+		test.githubClient.fakeCompareCommits = []fakeCompareCommits{
+			{
+				expectBase: testGitCommit1,
+				expectHead: testGitCommit2,
+				status:     github.CompareCommitsStatusAhead,
+			},
 		}
 	}
-	data := map[string]interface{}{
-		"commit": commit,
-		"tags":   tagMaps,
+	ctx := context.WithValue(context.Background(), registryProviderContextKey, &test.provider)
+	ctx = context.WithValue(ctx, githubClientContextKey, &test.githubClient)
+	args := []string{
+		"test",
+		test.subCommand,
+		test.input,
+		test.track,
+		test.defaultBranch,
+		test.refName,
 	}
-	output, err := json.Marshal(&data)
+	if test.subCommand == "push" {
+		args = append(args, test.currentGitCommit)
+	}
+	container := app.NewContainer(env, nil, &stdout, &stderr, args...)
+	command := NewRootCommand("test")
+	err := appcmd.Run(ctx, container, command)
+	if test.errMsg != "" {
+		errMsg := fmt.Sprintf("::error::%s", test.errMsg)
+		if assert.Error(t, err) {
+			assert.Contains(t, err.Error(), errMsg)
+		}
+		assert.Contains(t, stderr.String(), errMsg)
+	} else {
+		assert.NoError(t, err)
+		assert.Empty(t, stderr.String())
+	}
+
+	output := map[string]string{}
+	var stdoutLines []string
+	for _, line := range strings.Split(stdout.String(), "\n") {
+		if line == "" {
+			continue
+		}
+		if strings.HasPrefix(line, "::set-output name=") {
+			keyValue := strings.TrimPrefix(line, "::set-output name=")
+			delim := strings.Index(keyValue, "::")
+			if delim == -1 {
+				stdoutLines = append(stdoutLines, line)
+				continue
+			}
+			key := keyValue[:delim]
+			value := keyValue[delim+2:]
+			output[key] = value
+			continue
+		}
+		stdoutLines = append(stdoutLines, line)
+	}
+	assert.Equal(t, test.stdout, stdoutLines)
+	if len(test.outputs) > 0 {
+		assert.Equal(t, test.outputs, output)
+	}
+	if test.outputs == nil {
+		assert.Empty(t, output)
+	} else {
+		assert.Equal(t, test.outputs, output)
+	}
+}
+
+func writeConfigFile(t *testing.T, content string) string {
+	tmpDir := t.TempDir()
+	configPath := filepath.Join(tmpDir, "buf.yaml")
+	err := os.WriteFile(configPath, []byte(content), 0600)
 	require.NoError(t, err)
-	return string(output)
+	return tmpDir
 }
 
-func compareCommitsRun(base, head string, status github.CompareCommitsStatus) fakeCompareCommits {
-	return fakeCompareCommits{
-		expectBase: base,
-		expectHead: head,
-		status:     status,
-	}
-}
-
-func bsrCommitURL(moduleName, commit string) string {
-	return fmt.Sprintf("https://%s/tree/%s", moduleName, commit)
+func v1Config(name string) string {
+	return fmt.Sprintf(
+		`
+version: v1
+name: %s
+`,
+		name,
+	)
 }

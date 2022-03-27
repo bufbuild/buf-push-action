@@ -18,15 +18,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
+	"net/url"
+	"strings"
 
 	"github.com/google/go-github/v42/github"
+	"golang.org/x/oauth2"
 )
 
 // CompareCommitsStatus is the result of comparing two commits.
 type CompareCommitsStatus int
 
-// The possible values for returned from githubClient.CompareCommits.
+// The possible values for returned from Client.CompareCommits.
 // see https://stackoverflow.com/a/23969867
 const (
 	CompareCommitsStatusDiverged CompareCommitsStatus = iota + 1
@@ -59,23 +61,66 @@ func (s CompareCommitsStatus) String() string {
 	return got
 }
 
-// Client is a client for interacting with the GitHub API.
-type Client interface {
-	// CompareCommits compares two commits and returns the status of head relative to base.
-	CompareCommits(ctx context.Context, base, head string) (CompareCommitsStatus, error)
+type Client struct {
+	client *github.Client
+	owner  string
+	repo   string
 }
 
 // NewClient returns a new github client.
 // baseURL is optional and defaults to https://api.github.com/.
-func NewClient(ctx context.Context, githubToken, userAgent, baseURL, repository string) (Client, error) {
-	return newGithubClient(ctx, githubToken, userAgent, baseURL, repository)
+func NewClient(ctx context.Context, token, userAgent, owner, repository string, baseURL *url.URL) *Client {
+	goGithubClient := github.NewClient(
+		oauth2.NewClient(
+			ctx,
+			oauth2.StaticTokenSource(
+				&oauth2.Token{
+					AccessToken: token,
+				},
+			),
+		),
+	)
+
+	if baseURL != nil {
+		*goGithubClient.BaseURL = *baseURL
+		// The underlying go-github client library requires the url has a trailing slash, but the
+		// value of GITHUB_API_URL usually doesn't have one.
+		if !strings.HasSuffix(goGithubClient.BaseURL.Path, "/") {
+			goGithubClient.BaseURL.Path += "/"
+		}
+	}
+
+	goGithubClient.UserAgent = userAgent
+	return &Client{
+		client: goGithubClient,
+		owner:  owner,
+		repo:   repository,
+	}
 }
 
-// IsNotFoundError returns true if the error is a *github.ErrorResponse with a 404 status code.
-func IsNotFoundError(err error) bool {
+// CompareCommits compares a range of commits with each other.
+//
+// GitHub API docs: https://docs.github.com/en/rest/reference/commits#compare-two-commits
+func (c *Client) CompareCommits(ctx context.Context, base string, head string) (CompareCommitsStatus, error) {
+	comp, _, err := c.client.Repositories.CompareCommits(ctx, c.owner, c.repo, base, head, nil)
+	if err != nil {
+		return 0, err
+	}
+	status, ok := stringsToCompareCommitStatus[comp.GetStatus()]
+	if !ok {
+		return 0, fmt.Errorf("unknown CompareCommitsStatus: %s", comp.GetStatus())
+	}
+	return status, nil
+}
+
+// IsResponseError returns true if the error is a *github.ErrorResponse with the given status code.
+func IsResponseError(statusCode int, err error) bool {
 	var errorResponse *github.ErrorResponse
 	if !errors.As(err, &errorResponse) {
 		return false
 	}
-	return errorResponse.Response.StatusCode == http.StatusNotFound
+	if errorResponse.Response == nil {
+		return false
+	}
+	return errorResponse.Response.StatusCode == statusCode
 }

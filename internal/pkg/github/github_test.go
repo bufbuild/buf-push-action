@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"testing"
 
 	"github.com/google/go-github/v42/github"
@@ -30,7 +31,8 @@ import (
 
 const (
 	testGithubToken      = "githubToken"
-	testGithubRepository = "owner/repo"
+	testGithubOwner      = "owner"
+	testGithubRepository = "repo"
 	testUserAgent        = "userAgent"
 )
 
@@ -80,6 +82,53 @@ func TestCompareCommits(t *testing.T) {
 		require.True(t, ok)
 		require.Equal(t, http.StatusNotFound, errorResponse.Response.StatusCode)
 	})
+
+	t.Run("unknown status", func(t *testing.T) {
+		ctx := context.Background()
+		server := newTestServer(t)
+		server.addHandler("/repos/owner/repo/compare/foo...bar", func(w http.ResponseWriter, r *http.Request) {
+			assertRequestHeaders(t, r)
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
+				"ahead_by":  1,
+				"behind_by": 2,
+				"status":    "something unexpected",
+			})
+			assert.NoError(t, err)
+		})
+		client := server.client(ctx)
+		_, err := client.CompareCommits(ctx, "foo", "bar")
+		require.EqualError(t, err, "unknown CompareCommitsStatus: something unexpected")
+	})
+}
+
+func TestNewClient(t *testing.T) {
+	baseURLString := "https://api.github.com"
+	baseURL, err := url.Parse(baseURLString)
+	require.NoError(t, err)
+	ctx := context.Background()
+	client := NewClient(ctx, testGithubToken, testUserAgent, testGithubOwner, testGithubRepository, baseURL)
+	// make sure the baseURL has a trailing slash
+	assert.Equal(t, "https://api.github.com/", client.client.BaseURL.String())
+	// make sure the original baseURL is not modified
+	assert.Equal(t, baseURLString, baseURL.String())
+}
+
+func TestIsResponseError(t *testing.T) {
+	assert.False(t, IsResponseError(http.StatusNotFound, nil))
+	assert.False(t, IsResponseError(http.StatusNotFound, assert.AnError))
+	assert.False(t, IsResponseError(http.StatusNotFound, &github.ErrorResponse{}))
+	assert.False(t, IsResponseError(http.StatusNotFound, &github.ErrorResponse{
+		Response: &http.Response{
+			StatusCode: http.StatusBadRequest,
+		},
+	}))
+	assert.True(t, IsResponseError(http.StatusNotFound, &github.ErrorResponse{
+		Response: &http.Response{
+			StatusCode: http.StatusNotFound,
+		},
+	}))
 }
 
 type testServer struct {
@@ -108,11 +157,11 @@ func (t *testServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	handler(w, r)
 }
 
-func (t *testServer) client(ctx context.Context) *githubClient {
+func (t *testServer) client(ctx context.Context) *Client {
 	ctx = context.WithValue(ctx, oauth2.HTTPClient, t.server.Client())
-	client, err := newGithubClient(ctx, testGithubToken, testUserAgent, t.server.URL, testGithubRepository)
-	assert.Equal(t.t, nil, err)
-	return client
+	baseURL, err := url.Parse(t.server.URL)
+	assert.NoError(t.t, err)
+	return NewClient(ctx, testGithubToken, testUserAgent, testGithubOwner, testGithubRepository, baseURL)
 }
 
 func (t *testServer) addHandler(path string, handler http.HandlerFunc) {
