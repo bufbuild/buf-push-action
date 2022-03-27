@@ -24,10 +24,12 @@ import (
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
 	"github.com/bufbuild/buf/private/buf/bufcli"
 	"github.com/bufbuild/buf/private/bufpkg/bufapiclient"
+	"github.com/bufbuild/buf/private/bufpkg/bufrpc"
 	"github.com/bufbuild/buf/private/bufpkg/buftransport"
 	"github.com/bufbuild/buf/private/gen/proto/apiclient/buf/alpha/registry/v1alpha1/registryv1alpha1apiclient"
 	"github.com/bufbuild/buf/private/pkg/app/appcmd"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
+	"github.com/bufbuild/buf/private/pkg/rpc/rpcauth"
 	"github.com/spf13/cobra"
 )
 
@@ -85,27 +87,33 @@ type githubClient interface {
 	CompareCommits(ctx context.Context, base, head string) (github.CompareCommitsStatus, error)
 }
 
-func getCommonArgs(container appflag.Container) (input, track, defaultBranch, refName string, _ error) {
+func getCommonArgs(
+	ctx context.Context,
+	container appflag.Container,
+) (_ context.Context, input, track, defaultBranch, refName string, _ error) {
+	bufToken := container.Env(bufTokenKey)
+	if bufToken == "" {
+		return ctx, "", "", "", "", errors.New("buf_token is empty")
+	}
+	ctx = rpcauth.WithToken(ctx, bufToken)
+	ctx = bufrpc.WithOutgoingCLIVersionHeader(ctx, bufcli.Version)
 	input = container.Arg(0)
 	if input == "" {
-		return "", "", "", "", errors.New("input is empty")
+		return ctx, "", "", "", "", errors.New("input is empty")
 	}
 	track = container.Arg(1)
 	if track == "" {
-		return "", "", "", "", errors.New("track is empty")
+		return ctx, "", "", "", "", errors.New("track is empty")
 	}
 	defaultBranch = container.Arg(2)
 	if defaultBranch == "" {
-		return "", "", "", "", errors.New("default_branch is empty")
+		return ctx, "", "", "", "", errors.New("default_branch is empty")
 	}
 	refName = container.Arg(3)
 	if refName == "" {
-		return "", "", "", "", errors.New("github.ref_name is empty")
+		return ctx, "", "", "", "", errors.New("github.ref_name is empty")
 	}
-	if container.Env(bufTokenKey) == "" {
-		return "", "", "", "", errors.New("buf_token is empty")
-	}
-	return input, track, defaultBranch, refName, nil
+	return ctx, input, track, defaultBranch, refName, nil
 }
 
 // interceptErrorForGithubAction intercepts errors and wraps them in formatting required for an error to be shown in

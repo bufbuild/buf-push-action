@@ -35,7 +35,7 @@ import (
 )
 
 func push(ctx context.Context, container appflag.Container) error {
-	input, track, defaultBranch, refName, err := getCommonArgs(container)
+	ctx, input, track, defaultBranch, refName, err := getCommonArgs(ctx, container)
 	if err != nil {
 		return err
 	}
@@ -149,10 +149,12 @@ func push(ctx context.Context, container appflag.Container) error {
 		return err
 	}
 	var commitName string
+	owner := moduleIdentity.Owner()
+	repository := moduleIdentity.Repository()
 	localModulePin, err := pushService.Push(
 		ctx,
-		moduleIdentity.Owner(),
-		moduleIdentity.Repository(),
+		owner,
+		repository,
 		"",
 		protoModule,
 		[]string{currentGitCommit},
