@@ -17,7 +17,7 @@ jobs:
     # Run `git checkout`
     - uses: actions/checkout@v2
     # Install the `buf` CLI
-    - uses: bufbuild/buf-setup-action@v0.6.0
+    - uses: bufbuild/buf-setup-action@v1
     # Push module to the BSR
     - uses: bufbuild/buf-push-action@v1
       with:
@@ -70,7 +70,7 @@ steps:
   # Run `git checkout`
   - uses: actions/checkout@v2
   # Install the `buf` CLI
-  - uses: bufbuild/buf-setup-action@v0.6.0
+  - uses: bufbuild/buf-setup-action@v1
   # Push only the Input in `proto` to the BSR
   - uses: bufbuild/buf-push-action@v1
     with:
@@ -97,7 +97,7 @@ jobs:
       # Run `git checkout`
       - uses: actions/checkout@v2
       # Install the `buf` CLI
-      - uses: bufbuild/buf-setup-action@v0.6.0
+      - uses: bufbuild/buf-setup-action@v1
       # Run a lint check on Protobuf sources
       - uses: bufbuild/buf-lint-action@v1
       # Run breaking change detection for Protobuf sources against the current `main` branch
