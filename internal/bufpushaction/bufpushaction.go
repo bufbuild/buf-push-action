@@ -55,12 +55,17 @@ const (
 	githubClientContextKey
 )
 
-// Main is the entrypoint to the buf CLI.
-func Main(name string) {
-	appcmd.Main(context.Background(), NewRootCommand(name))
+// githubClient is implemented by *github.Client
+type githubClient interface {
+	CompareCommits(ctx context.Context, base, head string) (github.CompareCommitsStatus, error)
 }
 
-func NewRootCommand(name string) *appcmd.Command {
+// Main is the entrypoint to the buf CLI.
+func Main(name string) {
+	appcmd.Main(context.Background(), newRootCommand(name))
+}
+
+func newRootCommand(name string) *appcmd.Command {
 	builder := appflag.NewBuilder(name, appflag.BuilderWithTimeout(120*time.Second))
 	return &appcmd.Command{
 		Use:   name,
@@ -82,12 +87,8 @@ func NewRootCommand(name string) *appcmd.Command {
 	}
 }
 
-// githubClient is implemented by *github.Client
-type githubClient interface {
-	CompareCommits(ctx context.Context, base, head string) (github.CompareCommitsStatus, error)
-}
-
-func getCommonArgs(
+// commonArgs returns the common arguments for the push and deleteTrack and adds BUF_TOKEN's value to the context.
+func commonArgs(
 	ctx context.Context,
 	container appflag.Container,
 ) (_ context.Context, input, track, defaultBranch, refName string, _ error) {
@@ -130,10 +131,6 @@ func interceptErrorForGithubAction(
 	}
 }
 
-func setOutput(stdout io.Writer, name, value string) {
-	fmt.Fprintf(stdout, "::set-output name=%s::%s\n", name, value)
-}
-
 // resolveTrack returns track unless it is
 //    1) set to ${{ github.ref_name }}
 //      AND
@@ -168,4 +165,14 @@ func newRegistryProvider(
 		provider = value
 	}
 	return provider, nil
+}
+
+// writeNotice writes a notice for a GitHub Action.
+func writeNotice(w io.Writer, message string) {
+	fmt.Fprintf(w, "::notice::%s\n", message)
+}
+
+// setOutput sets the output of a GitHub Action.
+func setOutput(stdout io.Writer, name, value string) {
+	fmt.Fprintf(stdout, "::set-output name=%s::%s\n", name, value)
 }

@@ -27,7 +27,7 @@ import (
 )
 
 func deleteTrack(ctx context.Context, container appflag.Container) error {
-	ctx, input, track, defaultBranch, refName, err := getCommonArgs(ctx, container)
+	ctx, input, track, defaultBranch, refName, err := commonArgs(ctx, container)
 	if err != nil {
 		return err
 	}

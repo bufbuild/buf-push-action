@@ -639,7 +639,7 @@ func runCmdTest(t *testing.T, test cmdTest) {
 		args = append(args, test.currentGitCommit)
 	}
 	container := app.NewContainer(env, nil, &stdout, &stderr, args...)
-	command := NewRootCommand("test")
+	command := newRootCommand("test")
 	err := appcmd.Run(ctx, container, command)
 	if test.errMsg != "" {
 		errMsg := fmt.Sprintf("::error::%s", test.errMsg)

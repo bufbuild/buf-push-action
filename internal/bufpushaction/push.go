@@ -19,7 +19,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -35,7 +34,7 @@ import (
 )
 
 func push(ctx context.Context, container appflag.Container) error {
-	ctx, input, track, defaultBranch, refName, err := getCommonArgs(ctx, container)
+	ctx, input, track, defaultBranch, refName, err := commonArgs(ctx, container)
 	if err != nil {
 		return err
 	}
@@ -108,7 +107,7 @@ func push(ctx context.Context, container appflag.Container) error {
 		}
 	}
 
-	ghClient, err := getGithubClient(ctx, container)
+	ghClient, err := newGithubClient(ctx, container)
 	if err != nil {
 		return err
 	}
@@ -223,8 +222,8 @@ func tagExistingCommit(
 	return nil
 }
 
-// getGithubClient returns the github client from the context if one is present or creates a client.
-func getGithubClient(ctx context.Context, container appflag.Container) (githubClient, error) {
+// newGithubClient returns the github client from the context if one is present or creates a client.
+func newGithubClient(ctx context.Context, container appflag.Container) (githubClient, error) {
 	var githubAPIURL *url.URL
 	if urlString := container.Env(githubAPIURLKey); urlString != "" {
 		var err error
@@ -252,9 +251,4 @@ func getGithubClient(ctx context.Context, container appflag.Container) (githubCl
 		client = value
 	}
 	return client, nil
-}
-
-// writeNotice writes a notice for a GitHub Action.
-func writeNotice(w io.Writer, message string) {
-	fmt.Fprintf(w, "::notice::%s\n", message)
 }
