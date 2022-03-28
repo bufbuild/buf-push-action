@@ -24,11 +24,14 @@ import (
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
 	"github.com/bufbuild/buf/private/buf/bufcli"
 	"github.com/bufbuild/buf/private/bufpkg/bufapiclient"
+	"github.com/bufbuild/buf/private/bufpkg/bufmodule"
+	"github.com/bufbuild/buf/private/bufpkg/bufmodule/bufmoduleref"
 	"github.com/bufbuild/buf/private/bufpkg/bufrpc"
 	"github.com/bufbuild/buf/private/bufpkg/buftransport"
 	"github.com/bufbuild/buf/private/gen/proto/apiclient/buf/alpha/registry/v1alpha1/registryv1alpha1apiclient"
 	"github.com/bufbuild/buf/private/pkg/app/appcmd"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
+	"github.com/bufbuild/buf/private/pkg/command"
 	"github.com/bufbuild/buf/private/pkg/rpc/rpcauth"
 	"github.com/spf13/cobra"
 )
@@ -87,34 +90,78 @@ func newRootCommand(name string) *appcmd.Command {
 	}
 }
 
-// commonArgs returns the common arguments for the push and deleteTrack and adds BUF_TOKEN's value to the context.
-func commonArgs(
+// commonArgs are the args that push and deleteTrack share
+type commonArgs struct {
+	track         string
+	defaultBranch string
+	refName       string
+}
+
+// resolveTrack returns track unless it is
+//    1) set to ${{ github.ref_name }}
+//      AND
+//    2) equal to defaultBranch
+// in which case it returns "main"
+func (a *commonArgs) resolveTrack() string {
+	if a.track == a.defaultBranch && a.track == a.refName {
+		return bufmoduleref.MainTrack
+	}
+	return a.track
+}
+
+// commonSetup does the setup that is required for both push and deleteTrack
+func commonSetup(
 	ctx context.Context,
 	container appflag.Container,
-) (_ context.Context, input, track, defaultBranch, refName string, _ error) {
+) (
+	context.Context,
+	*commonArgs,
+	registryv1alpha1apiclient.Provider,
+	bufmoduleref.ModuleIdentity,
+	bufmodule.Module,
+	error,
+) {
 	bufToken := container.Env(bufTokenKey)
 	if bufToken == "" {
-		return ctx, "", "", "", "", errors.New("buf_token is empty")
+		return ctx, nil, nil, nil, nil, errors.New("buf_token is empty")
 	}
 	ctx = rpcauth.WithToken(ctx, bufToken)
 	ctx = bufrpc.WithOutgoingCLIVersionHeader(ctx, bufcli.Version)
-	input = container.Arg(0)
+	registryProvider, err := newRegistryProvider(ctx, container)
+	if err != nil {
+		return ctx, nil, nil, nil, nil, err
+	}
+	input := container.Arg(0)
 	if input == "" {
-		return ctx, "", "", "", "", errors.New("input is empty")
+		return ctx, nil, nil, nil, nil, errors.New("input is empty")
 	}
-	track = container.Arg(1)
+	track := container.Arg(1)
 	if track == "" {
-		return ctx, "", "", "", "", errors.New("track is empty")
+		return ctx, nil, nil, nil, nil, errors.New("track is empty")
 	}
-	defaultBranch = container.Arg(2)
+	defaultBranch := container.Arg(2)
 	if defaultBranch == "" {
-		return ctx, "", "", "", "", errors.New("default_branch is empty")
+		return ctx, nil, nil, nil, nil, errors.New("default_branch is empty")
 	}
-	refName = container.Arg(3)
+	refName := container.Arg(3)
 	if refName == "" {
-		return ctx, "", "", "", "", errors.New("github.ref_name is empty")
+		return ctx, nil, nil, nil, nil, errors.New("github.ref_name is empty")
 	}
-	return ctx, input, track, defaultBranch, refName, nil
+	module, moduleIdentity, err := bufcli.ReadModuleWithWorkspacesDisabled(
+		ctx,
+		container,
+		bufcli.NewStorageosProvider(false),
+		command.NewRunner(),
+		input,
+	)
+	if err != nil {
+		return ctx, nil, nil, nil, nil, err
+	}
+	return ctx, &commonArgs{
+		track:         track,
+		defaultBranch: defaultBranch,
+		refName:       refName,
+	}, registryProvider, moduleIdentity, module, nil
 }
 
 // interceptErrorForGithubAction intercepts errors and wraps them in formatting required for an error to be shown in
@@ -129,18 +176,6 @@ func interceptErrorForGithubAction(
 		}
 		return fmt.Errorf("::error::%v", err)
 	}
-}
-
-// resolveTrack returns track unless it is
-//    1) set to ${{ github.ref_name }}
-//      AND
-//    2) equal to defaultBranch
-// in which case it returns "main"
-func resolveTrack(track, defaultBranch, refName string) string {
-	if track == defaultBranch && track == refName {
-		return "main"
-	}
-	return track
 }
 
 // newRegistryProvider returns a registry provider from the context if one is present or creates a provider.

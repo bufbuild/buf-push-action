@@ -16,62 +16,35 @@ package bufpushaction
 
 import (
 	"context"
-	"errors"
+	"fmt"
 
-	"github.com/bufbuild/buf/private/buf/bufcli"
-	"github.com/bufbuild/buf/private/bufpkg/bufconfig"
 	"github.com/bufbuild/buf/private/bufpkg/bufmodule/bufmoduleref"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
 	"github.com/bufbuild/buf/private/pkg/rpc"
-	"github.com/bufbuild/buf/private/pkg/storage/storageos"
 )
 
 func deleteTrack(ctx context.Context, container appflag.Container) error {
-	ctx, input, track, defaultBranch, refName, err := commonArgs(ctx, container)
+	ctx, args, registryProvider, moduleIdentity, _, err := commonSetup(ctx, container)
 	if err != nil {
 		return err
 	}
-	bucket, err := storageos.NewProvider().NewReadWriteBucket(input)
-	if err != nil {
-		return err
-	}
-	config, err := bufconfig.GetConfigForBucket(ctx, bucket)
-	if err != nil {
-		return err
-	}
-	if config.ModuleIdentity == nil {
-		return errors.New("module identity not found in config")
-	}
-	track = resolveTrack(track, defaultBranch, refName)
-	if track == "main" {
+	track := args.resolveTrack()
+	if track == bufmoduleref.MainTrack {
 		writeNotice(container.Stdout(), "Skipping because the main track can not be deleted from BSR")
 		return nil
 	}
-	moduleReference, err := bufmoduleref.NewModuleReference(
-		config.ModuleIdentity.Remote(),
-		config.ModuleIdentity.Owner(),
-		config.ModuleIdentity.Repository(),
-		track,
-	)
-	if err != nil {
-		return err
-	}
-	registryProvider, err := newRegistryProvider(ctx, container)
-	if err != nil {
-		return err
-	}
-	repositoryTrackService, err := registryProvider.NewRepositoryTrackService(ctx, moduleReference.Remote())
+	repositoryTrackService, err := registryProvider.NewRepositoryTrackService(ctx, moduleIdentity.Remote())
 	if err != nil {
 		return err
 	}
 	if err := repositoryTrackService.DeleteRepositoryTrackByName(
 		ctx,
-		moduleReference.Owner(),
-		moduleReference.Repository(),
+		moduleIdentity.Owner(),
+		moduleIdentity.Repository(),
 		track,
 	); err != nil {
 		if rpc.GetErrorCode(err) == rpc.ErrorCodeNotFound {
-			return bufcli.NewModuleReferenceNotFoundError(moduleReference)
+			return fmt.Errorf("%s:%s does not exist", moduleIdentity.IdentityString(), track)
 		}
 		return err
 	}

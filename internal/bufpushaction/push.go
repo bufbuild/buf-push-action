@@ -24,33 +24,21 @@ import (
 	"strings"
 
 	"github.com/bufbuild/buf-push-action/internal/pkg/github"
-	"github.com/bufbuild/buf/private/buf/bufcli"
 	"github.com/bufbuild/buf/private/bufpkg/bufmodule"
 	"github.com/bufbuild/buf/private/bufpkg/bufmodule/bufmoduleref"
 	"github.com/bufbuild/buf/private/gen/proto/apiclient/buf/alpha/registry/v1alpha1/registryv1alpha1apiclient"
 	"github.com/bufbuild/buf/private/pkg/app/appflag"
-	"github.com/bufbuild/buf/private/pkg/command"
 	"github.com/bufbuild/buf/private/pkg/rpc"
 )
 
 func push(ctx context.Context, container appflag.Container) error {
-	ctx, input, track, defaultBranch, refName, err := commonArgs(ctx, container)
+	ctx, args, registryProvider, moduleIdentity, module, err := commonSetup(ctx, container)
 	if err != nil {
 		return err
 	}
 	currentGitCommit := container.Arg(4)
 	if currentGitCommit == "" {
 		return errors.New("github.sha is empty")
-	}
-	module, moduleIdentity, err := bufcli.ReadModuleWithWorkspacesDisabled(
-		ctx,
-		container,
-		bufcli.NewStorageosProvider(false),
-		command.NewRunner(),
-		input,
-	)
-	if err != nil {
-		return err
 	}
 	protoModule, err := bufmodule.ModuleToProtoModule(ctx, module)
 	if err != nil {
@@ -59,15 +47,11 @@ func push(ctx context.Context, container appflag.Container) error {
 	// Error when track is main and not overridden but the default branch is not main.
 	// This is for situations where the default branch is something like master and there
 	// is also a main branch. It prevents the main track from having commits from multiple git branches.
-	if defaultBranch != "main" && track == "main" && track == refName {
+	if args.defaultBranch != "main" && args.track == bufmoduleref.MainTrack && args.track == args.refName {
 		return errors.New("cannot push to main track from a non-default branch")
 	}
-	track = resolveTrack(track, defaultBranch, refName)
+	track := args.resolveTrack()
 	var tags []string
-	registryProvider, err := newRegistryProvider(ctx, container)
-	if err != nil {
-		return err
-	}
 	repositoryCommitService, err := registryProvider.NewRepositoryCommitService(ctx, moduleIdentity.Remote())
 	if err != nil {
 		return err
