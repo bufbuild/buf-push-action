@@ -30,4 +30,4 @@ jobs:
           input: path/to/input
         env:
           WANT_BUF_TOKEN: fake-buf-token
-          WANT_ARGS: push --tag ${{ github.sha }} path/to/input
+          WANT_ARGS: push path/to/input --tag ${{ github.sha }}

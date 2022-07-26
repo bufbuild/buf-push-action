@@ -13,11 +13,11 @@ PATH="${DIR}/tmp/test/bin:$PATH"
 cp test/buf.bash tmp/test/bin/buf
 chmod +x tmp/test/bin/buf
 
-# prevent the GITHUB_SHA set by actions from being used in test
-unset GITHUB_SHA
+# prevent the GITHUB_SHA, GITHUB_REF_NAME and GITHUB_REF_TYPE set by actions from being used in test
+unset GITHUB_SHA GITHUB_REF_NAME GITHUB_REF_TYPE
 
 test_push() {
-  export GITHUB_SHA BUF_TOKEN WANT_BUF_TOKEN WANT_ARGS
+  export GITHUB_SHA GITHUB_REF_NAME GITHUB_REF_TYPE BUF_TOKEN WANT_BUF_TOKEN WANT_ARGS
   set +e
   ./push.bash "$@" > tmp/test/stdout 2> tmp/test/stderr
   GOT_EXIT_CODE="${?}"
@@ -39,14 +39,16 @@ test_push() {
     fi
   fi
   rm -f tmp/test/stdout tmp/test/stderr
-  unset GITHUB_SHA BUF_TOKEN WANT_BUF_TOKEN WANT_ARGS
+  unset GITHUB_SHA GITHUB_REF_NAME GITHUB_REF_TYPE BUF_TOKEN WANT_BUF_TOKEN WANT_ARGS
 }
 
 echo "testing happy path"
 GITHUB_SHA=fake-sha
+GITHUB_REF_NAME=main
+GITHUB_REF_TYPE=branch
 BUF_TOKEN=fake-token
 WANT_BUF_TOKEN=fake-token
-WANT_ARGS="push --tag fake-sha some/input/path"
+WANT_ARGS="push some/input/path --tag fake-sha"
 WANT_STDOUT="::add-mask::fake-token"
 WANT_STDERR=""
 WANT_EXIT_CODE=0
@@ -55,6 +57,8 @@ echo "ok"
 
 echo "testing no input"
 GITHUB_SHA=fake-sha
+GITHUB_REF_NAME=main
+GITHUB_REF_TYPE=branch
 BUF_TOKEN=fake-token
 WANT_STDOUT=""
 WANT_STDERR="Usage: ./push.bash <input>"
@@ -73,6 +77,8 @@ echo "ok"
 
 echo "testing no BUF_TOKEN"
 GITHUB_SHA=fake-sha
+GITHUB_REF_NAME=main
+GITHUB_REF_TYPE=branch
 WANT_STDOUT='::add-mask::
 ::error::a buf authentication token was not provided'
 WANT_STDERR=""
