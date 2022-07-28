@@ -24,6 +24,7 @@ jobs:
           chmod +x tmp/bin/buf
           echo "${PWD}/tmp/bin" >> "${GITHUB_PATH}"
       - name: run action
+        if: github.ref == 'refs/heads/main'
         uses: ./
         with:
           buf_token: fake-buf-token
@@ -31,3 +32,5 @@ jobs:
         env:
           WANT_BUF_TOKEN: fake-buf-token
           WANT_ARGS: push path/to/input --tag ${{ github.sha }}
+          GITHUB_REF_TYPE: branch
+          GITHUB_REF_NAME: main
