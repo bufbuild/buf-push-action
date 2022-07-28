@@ -41,8 +41,13 @@ if [ -z "$BUF_COMMAND" ]; then
   fail "$NOT_INSTALLED_MESSAGE"
 fi
 
+if [ "${GITHUB_REF_TYPE}" != "branch" ]; then
+  echo "reference type is not branch, skipping" >&2
+  exit 0
+fi
+
 BUF_ARGS=("--tag" "${GITHUB_SHA}")
-if [ "${GITHUB_REF_TYPE}" = "branch" ] && [ "${GITHUB_REF_NAME}" != "main" ]; then
+if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
   # Check that --draft is supported by running "buf push --draft example --help"
   # and checking for "unknown flag: --draft" in the output.
   set +e

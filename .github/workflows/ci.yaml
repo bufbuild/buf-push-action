@@ -23,14 +23,18 @@ jobs:
           cp test/buf.bash tmp/bin/buf
           chmod +x tmp/bin/buf
           echo "${PWD}/tmp/bin" >> "${GITHUB_PATH}"
-      - name: run action
-        if: github.ref == 'refs/heads/main'
+      - name: run on branch
+        if: github.ref_type == 'branch' && github.ref != 'refs/heads/main'
         uses: ./
         with:
           buf_token: fake-buf-token
           input: path/to/input
         env:
           WANT_BUF_TOKEN: fake-buf-token
+          WANT_ARGS: push path/to/input --draft ${{ github.ref_name }}
+      - name: run on main
+        if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
+        run: "echo $WANT_ARGS"
+        env:
+          WANT_BUF_TOKEN: fake-buf-token
           WANT_ARGS: push path/to/input --tag ${{ github.sha }}
-          GITHUB_REF_TYPE: branch
-          GITHUB_REF_NAME: main
