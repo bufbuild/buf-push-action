@@ -47,7 +47,7 @@ if [ "${GITHUB_REF_TYPE}" != "branch" ]; then
 fi
 
 BUF_ARGS=("--tag" "${GITHUB_SHA}")
-if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+if [ "${GITHUB_REF_NAME}" != "main" ]; then
   # Check that --draft is supported by running "buf push --draft example --help"
   # and checking for "unknown flag: --draft" in the output.
   set +e
