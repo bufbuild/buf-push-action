@@ -13,11 +13,6 @@ fail() {
   exit 1
 }
 
-unset GITHUB_REF_NAME GITHUB_REF_TYPE
-
-GITHUB_REF_NAME=main
-GITHUB_REF_TYPE=branch
-
 if [ "$BUF_TOKEN" != "$WANT_BUF_TOKEN" ]; then
   fail "buf-push-action got wrong BUF_TOKEN: '$BUF_TOKEN' wanted '$WANT_BUF_TOKEN'"
 fi

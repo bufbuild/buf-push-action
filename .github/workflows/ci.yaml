@@ -34,7 +34,10 @@ jobs:
           WANT_ARGS: push path/to/input --draft ${{ github.ref_name }}
       - name: run on main
         if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
-        run: "echo $WANT_ARGS"
+        uses: ./
+        with:
+          buf_token: fake-buf-token
+          input: path/to/input
         env:
           WANT_BUF_TOKEN: fake-buf-token
           WANT_ARGS: push path/to/input --tag ${{ github.sha }}
