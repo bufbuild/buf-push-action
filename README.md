@@ -78,6 +78,48 @@ steps:
       buf_token: ${{ secrets.BUF_TOKEN }}
 ```
 
+### Push multiple modules
+
+If you have multiple modules defined in your repository, you'll need to configure `buf-push-action`
+for each of the modules you want to push.
+
+For example, suppose you have the following `buf.work.yaml`:
+
+```yaml
+version: v1
+directories:
+  - petapis
+  - paymentapis
+```
+
+If you want to push both of the modules defined in the `paymentapis` and `petapis` directories,
+you could adapt the workflow above like so (replacing the `proto` directory input with the
+hypothetical `paymentapis` and `petapis` directory inputs):
+
+```yaml
+steps:
+  # Run `git checkout`
+  - uses: actions/checkout@v2
+  # Install the `buf` CLI
+  - uses: bufbuild/buf-setup-action@v1
+  # Push only the Input in `paymentapis` to the BSR
+  - uses: bufbuild/buf-push-action@v1
+    with:
+      input: paymentapis
+      buf_token: ${{ secrets.BUF_TOKEN }}
+  # Push only the Input in `petapis` to the BSR
+  - uses: bufbuild/buf-push-action@v1
+    with:
+      input: petapis
+      buf_token: ${{ secrets.BUF_TOKEN }}
+```
+
+Note, if any of the modules defined in your workspace depend on each other, you usually need to
+run `buf mod update` so that the downstream module uses the upstream module's latest commit. This
+is not supported by `buf-push-action` on its own - you'll need to stitch this functionality into
+your workflow on your own. For more details, see [this](https://github.com/bufbuild/buf/issues/838)
+discussion.
+
 ### Validate before push
 
 `buf-push-action` is typically used alongside other `buf` Actions, such as
