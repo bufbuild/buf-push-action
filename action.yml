@@ -12,6 +12,9 @@ inputs:
     description: The Input path.
     default: '.'
     required: false
+  enable_draft:
+    description: The identifier of enabling draft, when set to 'true' the action will push the module as draft if the branch that trigger the workflow is not 'main'.
+    required: false
 runs:
   using: composite
   steps:
@@ -19,4 +22,5 @@ runs:
       shell: bash
       env:
         BUF_TOKEN: ${{ inputs.buf_token }}
+        ENABLE_DRAFT: ${{ inputs.enable_draft }}
       run: $GITHUB_ACTION_PATH/push.bash ${{ inputs.input }}
