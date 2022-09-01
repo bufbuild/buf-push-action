@@ -22,10 +22,13 @@ jobs:
     - uses: bufbuild/buf-push-action@v1
       with:
         buf_token: ${{ secrets.BUF_TOKEN }}
+        enable_draft: true
 ```
 
-With this configuration, the `buf` CLI pushes the [configured module][buf-yaml] to the BSR upon
-merge using a Buf API token to authenticate with the [Buf Schema Registry][bsr] (BSR).
+With this configuration, the `buf` CLI pushes the [configured module][buf-yaml] to the BSR using 
+a Buf API token to authenticate with the [Buf Schema Registry][bsr] (BSR), upon a pull request 
+[opened, synchronize, or reopened][github-workflow], and will push as a draft when the triggering 
+branch is not `main`.
 
 For instructions on creating a BSR API token, see our [official docs][bsr-token]. Once you've
 created a an API token, you need to create an encrypted [Github Secret][github-secret] for it. In
@@ -38,10 +41,11 @@ We recommend using [`buf-setup-action`][buf-setup] to install it (as in the exam
 
 ## Configuration
 
-Parameter | Description | Required | Default
-:---------|:------------|:---------|:-------
-`buf_token` | The [Buf authentication token][buf-token] used for private [Buf inputs][input] | ✅  | [`${{github.token}}`][github-token]
-`input` | The path of the [input] you want to push to BSR as a module | | `.`
+| Parameter      | Description                                                                                           | Required | Default                             |
+|:---------------|:------------------------------------------------------------------------------------------------------|:---------|:------------------------------------|
+| `buf_token`    | The [Buf authentication token][buf-token] used for private [Buf inputs][input]                        | ✅        | [`${{github.token}}`][github-token] |
+| `input`        | The path of the [input] you want to push to BSR as a module                                           |          | `.`                                 |
+| `enable_draft` | Enable to push the BSR commit as draft when the git branch that triggering the workflow is not `main` |          |                                     |
 
 > These parameters are derived from [`action.yml`](./action.yml).
 
@@ -120,6 +124,7 @@ jobs:
 [buf-yaml]: https://docs.buf.build/configuration/v1/buf-yaml
 [github-secret]: https://docs.github.com/en/actions/reference/encrypted-secrets
 [github-token]: https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
+[github-workflow]: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request
 [input]: https://docs.buf.build/reference/inputs
 [lint]: https://docs.buf.build/lint
 [modules]: https://docs.buf.build/bsr/overview#module
