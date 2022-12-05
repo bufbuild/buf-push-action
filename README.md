@@ -22,13 +22,13 @@ jobs:
     - uses: bufbuild/buf-push-action@v1
       with:
         buf_token: ${{ secrets.BUF_TOKEN }}
-        enable_draft: true
+        draft: true
 ```
 
-With this configuration, the `buf` CLI pushes the [configured module][buf-yaml] to the BSR using 
-a Buf API token to authenticate with the [Buf Schema Registry][bsr] (BSR), upon a pull request 
-[opened, synchronize, or reopened][github-workflow], and will push as a draft when the triggering 
-branch is not `main`.
+With this configuration, upon a pull request [opened, synchronize, or reopened][github-workflow]
+the `buf` CLI pushes the [configured module][buf-yaml] to the BSR using the provided to
+authenticate the request. When the triggering branch is not `main`, the commit will be pushed
+as a [draft][buf-draft].
 
 For instructions on creating a BSR API token, see our [official docs][bsr-token]. Once you've
 created a an API token, you need to create an encrypted [Github Secret][github-secret] for it. In
@@ -41,11 +41,11 @@ We recommend using [`buf-setup-action`][buf-setup] to install it (as in the exam
 
 ## Configuration
 
-| Parameter      | Description                                                                                           | Required | Default                             |
-|:---------------|:------------------------------------------------------------------------------------------------------|:---------|:------------------------------------|
-| `buf_token`    | The [Buf authentication token][buf-token] used for private [Buf inputs][input]                        | ✅        | [`${{github.token}}`][github-token] |
-| `input`        | The path of the [input] you want to push to BSR as a module                                           |          | `.`                                 |
-| `enable_draft` | Enable to push the BSR commit as draft when the git branch that triggering the workflow is not `main` |          |                                     |
+| Parameter   | Description                                                                             | Required | Default                             |
+|:------------|:----------------------------------------------------------------------------------------|:---------|:------------------------------------|
+| `buf_token` | The [Buf authentication token][buf-token] used for private [Buf inputs][input]          | ✅        | [`${{github.token}}`][github-token] |
+| `input`     | The path of the [input] you want to push to BSR as a module                             |          | `.`                                 |
+| `draft`     | Indicates if non-`main` workflows should push to the BSR as draft commit or main commit |          |                                     |
 
 > These parameters are derived from [`action.yml`](./action.yml).
 
@@ -118,6 +118,7 @@ jobs:
 [bsr]: https://docs.buf.build/bsr
 [bsr-token]: https://docs.buf.build/bsr/authentication
 [buf-breaking]: https://github.com/marketplace/actions/buf-breaking
+[buf-draft]: https://docs.buf.build/bsr/overview#referencing-a-module
 [buf-lint]: https://github.com/marketplace/actions/buf-lint
 [buf-setup]: https://github.com/marketplace/actions/buf-setup
 [buf-token]: https://docs.buf.build/bsr/authentication#create-an-api-token
