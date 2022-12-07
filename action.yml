@@ -13,7 +13,7 @@ inputs:
     default: '.'
     required: false
   draft:
-    description: The identifier of enabling draft, when set to 'true' the action will push the module as draft if the branch that trigger the workflow is not 'main'.
+    description: The identifier of pushing to the BSR as a draft commit, when set to 'true' the action will push the module as draft with the branch name as draft name.
     required: false
 runs:
   using: composite

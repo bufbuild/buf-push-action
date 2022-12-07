@@ -17,7 +17,7 @@ chmod +x tmp/test/bin/buf
 unset GITHUB_SHA GITHUB_REF_NAME GITHUB_REF_TYPE
 
 test_push() {
-  export GITHUB_SHA GITHUB_REF_NAME GITHUB_REF_TYPE BUF_TOKEN WANT_BUF_TOKEN WANT_ARGS
+  export GITHUB_SHA GITHUB_REF_NAME GITHUB_REF_TYPE BUF_TOKEN DRAFT WANT_BUF_TOKEN WANT_ARGS
   set +e
   ./push.bash "$@" > tmp/test/stdout 2> tmp/test/stderr
   GOT_EXIT_CODE="${?}"
@@ -49,6 +49,34 @@ GITHUB_REF_TYPE=branch
 BUF_TOKEN=fake-token
 WANT_BUF_TOKEN=fake-token
 WANT_ARGS="push some/input/path --tag fake-sha"
+WANT_STDOUT="::add-mask::fake-token"
+WANT_STDERR=""
+WANT_EXIT_CODE=0
+test_push some/input/path
+echo "ok"
+
+echo "testing happy path draft"
+GITHUB_SHA=fake-sha
+GITHUB_REF_NAME=fake-ref
+GITHUB_REF_TYPE=branch
+BUF_TOKEN=fake-token
+DRAFT=true
+WANT_BUF_TOKEN=fake-token
+WANT_ARGS="push some/input/path --draft fake-ref"
+WANT_STDOUT="::add-mask::fake-token"
+WANT_STDERR=""
+WANT_EXIT_CODE=0
+test_push some/input/path
+echo "ok"
+
+echo "testing happy path draft on main branch"
+GITHUB_SHA=fake-sha
+GITHUB_REF_NAME=main
+GITHUB_REF_TYPE=branch
+BUF_TOKEN=fake-token
+DRAFT=true
+WANT_BUF_TOKEN=fake-token
+WANT_ARGS="push some/input/path --draft main" # we don't handle this within the action, but this should fail in the server side
 WANT_STDOUT="::add-mask::fake-token"
 WANT_STDERR=""
 WANT_EXIT_CODE=0

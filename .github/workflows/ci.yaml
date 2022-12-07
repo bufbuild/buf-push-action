@@ -23,17 +23,15 @@ jobs:
           cp test/buf.bash tmp/bin/buf
           chmod +x tmp/bin/buf
           echo "${PWD}/tmp/bin" >> "${GITHUB_PATH}"
-      - name: run on branch disable draft
-        if: github.ref_type == 'branch' && github.ref != 'refs/heads/main'
+      - name: run action
         uses: ./
         with:
           buf_token: fake-buf-token
           input: path/to/input
         env:
           WANT_BUF_TOKEN: fake-buf-token
-          WANT_ARGS: push path/to/input --tag ${{ github.sha }}
-      - name: run on branch enable draft
-        if: github.ref_type == 'branch' && github.ref != 'refs/heads/main'
+          WANT_ARGS: push --tag ${{ github.sha }} path/to/input
+      - name: run action with draft
         uses: ./
         with:
           buf_token: fake-buf-token
@@ -41,13 +39,4 @@ jobs:
           draft: true
         env:
           WANT_BUF_TOKEN: fake-buf-token
-          WANT_ARGS: push path/to/input --draft ${{ github.ref_name }}
-      - name: run on main
-        if: github.ref_type == 'branch' && github.ref == 'refs/heads/main'
-        uses: ./
-        with:
-          buf_token: fake-buf-token
-          input: path/to/input
-        env:
-          WANT_BUF_TOKEN: fake-buf-token
-          WANT_ARGS: push path/to/input --tag ${{ github.sha }}
+          WANT_ARGS: push --draft ${{ github.ref_name }} path/to/input
