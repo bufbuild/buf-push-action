@@ -30,7 +30,7 @@ jobs:
           input: path/to/input
         env:
           WANT_BUF_TOKEN: fake-buf-token
-          WANT_ARGS: push --tag ${{ github.sha }} path/to/input
+          WANT_ARGS: push path/to/input --tag ${{ github.sha }}
       - name: run action with draft
         uses: ./
         with:
@@ -39,4 +39,4 @@ jobs:
           draft: true
         env:
           WANT_BUF_TOKEN: fake-buf-token
-          WANT_ARGS: push --draft ${{ github.ref_name }} path/to/input
+          WANT_ARGS: push path/to/input--draft ${{ github.ref_name }}
