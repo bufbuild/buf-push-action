@@ -22,7 +22,7 @@ jobs:
     - uses: bufbuild/buf-push-action@v1
       with:
         buf_token: ${{ secrets.BUF_TOKEN }}
-        draft: ${{ env.GITHUB_BASE_REF != "main"}}
+        draft: ${{ github.ref_name != 'main'}}
 ```
 
 With this configuration, upon a pull request [opened, synchronize, or reopened][github-workflow]
