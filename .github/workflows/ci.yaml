@@ -39,4 +39,4 @@ jobs:
           draft: true
         env:
           WANT_BUF_TOKEN: fake-buf-token
-          WANT_ARGS: push path/to/input--draft ${{ github.ref_name }}
+          WANT_ARGS: push path/to/input --draft ${{ github.ref_name }}
