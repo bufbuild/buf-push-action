@@ -21,6 +21,14 @@ if [ -z "${GITHUB_SHA}" ]; then
   fail "the commit was not provided"
 fi
 
+if [ -z "${GITHUB_REF_NAME}" ]; then
+  fail "the commit ref was not provided"
+fi
+
+if [ -z "${GITHUB_REF_TYPE}" ]; then
+  fail "the commit ref type was not provided"
+fi
+
 if [ -z "${BUF_TOKEN}" ]; then
   fail "a buf authentication token was not provided"
 fi
@@ -33,4 +41,23 @@ if [ -z "$BUF_COMMAND" ]; then
   fail "$NOT_INSTALLED_MESSAGE"
 fi
 
-BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" push --tag "${GITHUB_SHA}" "${BUF_INPUT}"
+if [ "${GITHUB_REF_TYPE}" != "branch" ]; then
+  echo "reference type is not branch, skipping" >&2
+  exit 0
+fi
+
+BUF_ARGS=("--tag" "${GITHUB_SHA}")
+if [ "${DRAFT}" == "true" ]; then
+  # Check that --draft is supported by running "buf push --draft example --help"
+  # and checking for "unknown flag: --draft" in the output.
+  set +e
+  BUF_HELP_OUTPUT="$("${BUF_COMMAND}" push --draft example --help 2>&1)"
+  set -e
+  if [[ "${BUF_HELP_OUTPUT}" == *"unknown flag: --draft"* ]]; then
+    fail "The installed version of buf does not support setting the draft. Please use buf v1.7.0 or newer."
+  fi
+
+  BUF_ARGS=("--draft" "${GITHUB_REF_NAME}")
+fi
+
+BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" "push" "${BUF_INPUT}" "${BUF_ARGS[@]}"

@@ -12,6 +12,9 @@ inputs:
     description: The Input path.
     default: '.'
     required: false
+  draft:
+    description: The identifier of pushing to the BSR as a draft commit, when set to 'true' the action will push the module as draft with the branch name as draft name.
+    required: false
 runs:
   using: composite
   steps:
@@ -19,4 +22,5 @@ runs:
       shell: bash
       env:
         BUF_TOKEN: ${{ inputs.buf_token }}
+        DRAFT: ${{ inputs.draft }}
       run: $GITHUB_ACTION_PATH/push.bash ${{ inputs.input }}
