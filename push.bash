@@ -25,10 +25,6 @@ if [ -z "${GITHUB_REF_NAME}" ]; then
   fail "the commit ref was not provided"
 fi
 
-if [ -z "${GITHUB_REF_TYPE}" ]; then
-  fail "the commit ref type was not provided"
-fi
-
 if [ -z "${BUF_TOKEN}" ]; then
   fail "a buf authentication token was not provided"
 fi
@@ -39,11 +35,6 @@ BUF_COMMAND="$(type -P buf)" || fail "$NOT_INSTALLED_MESSAGE"
 
 if [ -z "$BUF_COMMAND" ]; then
   fail "$NOT_INSTALLED_MESSAGE"
-fi
-
-if [ "${GITHUB_REF_TYPE}" != "branch" ]; then
-  echo "reference type is not branch, skipping" >&2
-  exit 0
 fi
 
 BUF_ARGS=("--tag" "${GITHUB_SHA}")
