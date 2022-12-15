@@ -11,7 +11,7 @@ Pushed modules are created with the Git commit SHA as the module tag.
 Here's an example usage of `buf-push-action`:
 
 ```yaml
-on: pull_request # Apply to all pull requests
+on: push # Apply to all push
 jobs:
   push-module:
     # Run `git checkout`
@@ -25,7 +25,7 @@ jobs:
         draft: ${{ github.ref_name != 'main'}}
 ```
 
-With this configuration, upon a pull request [opened, synchronize, or reopened][github-workflow]
+With this configuration, upon a push [branches, tags][github-workflow]
 the `buf` CLI pushes the [configured module][buf-yaml] to the BSR using the provided to
 authenticate the request. When the triggering branch is not `main`, the commit will be pushed
 as a [draft][buf-draft].
@@ -167,7 +167,7 @@ jobs:
 [buf-yaml]: https://docs.buf.build/configuration/v1/buf-yaml
 [github-secret]: https://docs.github.com/en/actions/reference/encrypted-secrets
 [github-token]: https://docs.github.com/en/actions/learn-github-actions/contexts#github-context
-[github-workflow]: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#pull_request
+[github-workflow]: https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#push
 [input]: https://docs.buf.build/reference/inputs
 [lint]: https://docs.buf.build/lint
 [modules]: https://docs.buf.build/bsr/overview#module
