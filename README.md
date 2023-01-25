@@ -41,11 +41,11 @@ We recommend using [`buf-setup-action`][buf-setup] to install it (as in the exam
 
 ## Configuration
 
-| Parameter   | Description                                                                      | Required | Default                             |
-|:------------|:---------------------------------------------------------------------------------|:---------|:------------------------------------|
-| `buf_token` | The [Buf authentication token][buf-token] used for private [Buf inputs][input]   | ✅        | [`${{github.token}}`][github-token] |
-| `input`     | The path of the [input] you want to push to BSR as a module                      |          | `.`                                 |
-| `draft`     | Indicates if the workflows should push to the BSR as a [draft][buf-draft] commit |          |                                     |
+| Parameter   | Description                                                                    | Required | Default                             |
+|:------------|:-------------------------------------------------------------------------------|:---------|:------------------------------------|
+| `buf_token` | The [Buf authentication token][buf-token] used for private [Buf inputs][input] | ✅        | [`${{github.token}}`][github-token] |
+| `input`     | The path of the [input] you want to push to BSR as a module                    |          | `.`                                 |
+| `draft`     | Indicates if the workflows should push to the BSR as a [draft][buf-draft]      |          |                                     |
 
 > These parameters are derived from [`action.yml`](./action.yml).
 
