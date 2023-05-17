@@ -51,4 +51,17 @@ if [ "${DRAFT}" == "true" ]; then
   BUF_ARGS=("--draft" "${GITHUB_REF_NAME}")
 fi
 
+if [ -n "${CREATE_VISIBILITY}"]; then
+  set +e
+  BUF_HELP_OUTPUT="$("${BUF_COMMAND}" push example --create --help 2>&1)" # need to verify this
+  set -e
+  if [[ "${BUF_HELP_OUTPUT}" == *"unknown flag: --create"* ]]; then
+    fail "The installed version of buf does not support creating repositories. Please use buf v1.19.0 or newer." # TODO: check if it's in 1.19.0 when it's released
+  fi
+  if [[ "${CREATE_VISIBILITY}" != "public" && "${CREATE_VISIBILITY}" != "private" ]]; then
+    fail "Must specify --create-visibility as either 'public' or 'private'"
+  fi
+  BUF_ARGS+=("--create" "--create-visibility" "${CREATE_VISIBILITY}")
+fi
+
 BUF_TOKEN="${BUF_TOKEN}" "${BUF_COMMAND}" "push" "${BUF_INPUT}" "${BUF_ARGS[@]}"

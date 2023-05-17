@@ -10,10 +10,13 @@ inputs:
     required: true
   input:
     description: The Input path.
-    default: '.'
+    default: "."
     required: false
   draft:
     description: The identifier of pushing to the BSR as a draft commit, when set to 'true' the action will push the module as draft with the branch name as draft name.
+    required: false
+  create_visibility:
+    description: The visibility of the BSR repository to be created with, if one needs to be created.
     required: false
 runs:
   using: composite
@@ -23,4 +26,5 @@ runs:
       env:
         BUF_TOKEN: ${{ inputs.buf_token }}
         DRAFT: ${{ inputs.draft }}
+        CREATE_VISIBILITY: ${{ create_visibility }}
       run: $GITHUB_ACTION_PATH/push.bash ${{ inputs.input }}
