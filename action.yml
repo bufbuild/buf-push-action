@@ -26,5 +26,5 @@ runs:
       env:
         BUF_TOKEN: ${{ inputs.buf_token }}
         DRAFT: ${{ inputs.draft }}
-        CREATE_VISIBILITY: ${{ create_visibility }}
+        CREATE_VISIBILITY: ${{ inputs.create_visibility }}
       run: $GITHUB_ACTION_PATH/push.bash ${{ inputs.input }}
