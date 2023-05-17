@@ -51,7 +51,7 @@ if [ "${DRAFT}" == "true" ]; then
   BUF_ARGS=("--draft" "${GITHUB_REF_NAME}")
 fi
 
-if [ -n "${CREATE_VISIBILITY}"]; then
+if [ -n "${CREATE_VISIBILITY}" ]; then
   set +e
   BUF_HELP_OUTPUT="$("${BUF_COMMAND}" push example --create --help 2>&1)" # need to verify this
   set -e
