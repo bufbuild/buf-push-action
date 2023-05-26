@@ -17,7 +17,7 @@ chmod +x tmp/test/bin/buf
 unset GITHUB_SHA GITHUB_REF_NAME
 
 test_push() {
-  export GITHUB_SHA GITHUB_REF_NAME BUF_TOKEN DRAFT WANT_BUF_TOKEN WANT_ARGS
+  export GITHUB_SHA GITHUB_REF_NAME BUF_TOKEN DRAFT WANT_BUF_TOKEN WANT_ARGS WANT_STDOUT WANT_STDERR WANT_EXIT_CODE CREATE_VISIBILITY
   set +e
   ./push.bash "$@" > tmp/test/stdout 2> tmp/test/stderr
   GOT_EXIT_CODE="${?}"
@@ -39,7 +39,7 @@ test_push() {
     fi
   fi
   rm -f tmp/test/stdout tmp/test/stderr
-  unset GITHUB_SHA GITHUB_REF_NAME BUF_TOKEN WANT_BUF_TOKEN WANT_ARGS
+  unset GITHUB_SHA GITHUB_REF_NAME BUF_TOKEN DRAFT WANT_BUF_TOKEN WANT_ARGS WANT_STDOUT WANT_STDERR WANT_EXIT_CODE CREATE_VISIBILITY
 }
 
 echo "testing happy path"
@@ -64,6 +64,20 @@ WANT_ARGS="push some/input/path --draft fake-ref"
 WANT_STDOUT="::add-mask::fake-token"
 WANT_STDERR=""
 WANT_EXIT_CODE=0
+test_push some/input/path
+echo "ok"
+
+echo "testing happy path create"
+GITHUB_SHA=fake-sha
+GITHUB_REF_NAME=main
+BUF_TOKEN=fake-token
+CREATE_VISIBILITY=private
+WANT_BUF_TOKEN=fake-token
+WANT_ARGS="push some/input/path --tag fake-sha --create --create-visibility private"
+WANT_STDOUT="::add-mask::fake-token"
+WANT_STDERR=""
+WANT_EXIT_CODE=0
+echo "CREATE is ${CREATE_VISIBILITY}"
 test_push some/input/path
 echo "ok"
 
