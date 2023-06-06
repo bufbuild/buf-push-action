@@ -56,7 +56,7 @@ if [ -n "${CREATE_VISIBILITY}" ]; then
   BUF_HELP_OUTPUT="$("${BUF_COMMAND}" push example --create --help 2>&1)"
   set -e
   if [[ "${BUF_HELP_OUTPUT}" == *"unknown flag: --create"* ]]; then
-    fail "The installed version of buf does not support creating repositories. Please use buf v1.19.0 or newer."
+    fail "The installed version of buf does not support creating repositories on push. Please use buf v1.19.0 or newer."
   fi
   BUF_ARGS+=("--create" "--create-visibility" "${CREATE_VISIBILITY}")
 fi
