@@ -58,9 +58,6 @@ if [ -n "${CREATE_VISIBILITY}" ]; then
   if [[ "${BUF_HELP_OUTPUT}" == *"unknown flag: --create"* ]]; then
     fail "The installed version of buf does not support creating repositories. Please use buf v1.19.0 or newer."
   fi
-  if [[ "${CREATE_VISIBILITY}" != "public" && "${CREATE_VISIBILITY}" != "private" ]]; then
-    fail "Must specify --create-visibility as either 'public' or 'private'"
-  fi
   BUF_ARGS+=("--create" "--create-visibility" "${CREATE_VISIBILITY}")
 fi
 
