@@ -14,16 +14,18 @@ Here's an example usage of `buf-push-action`:
 on: push # Apply to all push
 jobs:
   push-module:
-    # Run `git checkout`
-    - uses: actions/checkout@v2
-    # Install the `buf` CLI
-    - uses: bufbuild/buf-setup-action@v1
-    # Push module to the BSR
-    - uses: bufbuild/buf-push-action@v1
-      with:
-        buf_token: ${{ secrets.BUF_TOKEN }}
-        create_visibility: private
-        draft: ${{ github.ref_name != 'main'}}
+    runs-on: ubuntu-latest
+    steps:
+      # Run `git checkout`
+      - uses: actions/checkout@v2
+      # Install the `buf` CLI
+      - uses: bufbuild/buf-setup-action@v1
+      # Push module to the BSR
+      - uses: bufbuild/buf-push-action@v1
+        with:
+          buf_token: ${{ secrets.BUF_TOKEN }}
+          create_visibility: private
+          draft: ${{ github.ref_name != 'main'}}
 ```
 
 With this configuration, upon a push [branches, tags][github-workflow]
