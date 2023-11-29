@@ -17,7 +17,7 @@ chmod +x tmp/test/bin/buf
 unset GITHUB_SHA GITHUB_REF_NAME
 
 test_push() {
-  export GITHUB_SHA GITHUB_REF_NAME BUF_TOKEN DRAFT WANT_BUF_TOKEN WANT_ARGS WANT_STDOUT WANT_STDERR WANT_EXIT_CODE CREATE_VISIBILITY
+  export GITHUB_SHA GITHUB_REF_NAME TAG BUF_TOKEN DRAFT WANT_BUF_TOKEN WANT_ARGS WANT_STDOUT WANT_STDERR WANT_EXIT_CODE CREATE_VISIBILITY
   set +e
   ./push.bash "$@" > tmp/test/stdout 2> tmp/test/stderr
   GOT_EXIT_CODE="${?}"
@@ -120,5 +120,20 @@ WANT_STDOUT='::add-mask::
 ::error::a buf authentication token was not provided'
 WANT_STDERR=""
 WANT_EXIT_CODE=1
+test_push some/input/path
+echo "ok"
+
+echo "testing happy path create with tag"
+GITHUB_SHA=fake-sha
+TAG=fake-tag
+GITHUB_REF_NAME=main
+BUF_TOKEN=fake-token
+CREATE_VISIBILITY=private
+WANT_BUF_TOKEN=fake-token
+WANT_ARGS="push some/input/path --tag fake-tag --create --create-visibility private"
+WANT_STDOUT="::add-mask::fake-token"
+WANT_STDERR=""
+WANT_EXIT_CODE=0
+echo "TAG is ${TAG}"
 test_push some/input/path
 echo "ok"

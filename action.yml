@@ -18,6 +18,9 @@ inputs:
   create_visibility:
     description: The visibility of the BSR repository to be created with, if one needs to be created.
     required: false
+  tag:
+    description: The tag to push the module as.
+    required: false
 runs:
   using: composite
   steps:
@@ -27,4 +30,5 @@ runs:
         BUF_TOKEN: ${{ inputs.buf_token }}
         DRAFT: ${{ inputs.draft }}
         CREATE_VISIBILITY: ${{ inputs.create_visibility }}
+        TAG: ${{ inputs.tag }}
       run: $GITHUB_ACTION_PATH/push.bash ${{ inputs.input }}

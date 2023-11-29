@@ -40,3 +40,12 @@ jobs:
         env:
           WANT_BUF_TOKEN: fake-buf-token
           WANT_ARGS: push path/to/input --draft ${{ github.ref_name }}
+      - name: run action with custom tag
+        uses: ./
+        with:
+          buf_token: fake-buf-token
+          input: path/to/input
+          tag: custom-tag
+        env:
+          WANT_BUF_TOKEN: fake-buf-token
+          WANT_ARGS: push path/to/input --tag custom-tag

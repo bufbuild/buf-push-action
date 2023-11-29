@@ -37,7 +37,12 @@ if [ -z "$BUF_COMMAND" ]; then
   fail "$NOT_INSTALLED_MESSAGE"
 fi
 
-BUF_ARGS=("--tag" "${GITHUB_SHA}")
+VERSION=${GITHUB_SHA}
+if [ -n "${TAG}" ]; then
+  VERSION="${TAG}"
+fi
+
+BUF_ARGS=("--tag" "$VERSION")
 if [ "${DRAFT}" == "true" ]; then
   # Check that --draft is supported by running "buf push --draft example --help"
   # and checking for "unknown flag: --draft" in the output.

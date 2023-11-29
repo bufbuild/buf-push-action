@@ -46,11 +46,12 @@ We recommend using [`buf-setup-action`][buf-setup] to install it (as in the exam
 ## Configuration
 
 | Parameter           | Description                                                                    | Required | Default                             |
-| :------------------ | :----------------------------------------------------------------------------- | :------- | :---------------------------------- |
+| :------------------ |:-------------------------------------------------------------------------------| :------- | :---------------------------------- |
 | `buf_token`         | The [Buf authentication token][buf-token] used for private [Buf inputs][input] | ✅       | [`${{github.token}}`][github-token] |
 | `input`             | The path of the [input] you want to push to BSR as a module                    |          | `.`                                 |
 | `draft`             | Indicates if the workflows should push to the BSR as a [draft][buf-draft]      |          |                                     |
 | `create_visibility` | The visibility to create the BSR repository with, if it does not already exist |          |                                     |
+| `tag`               | The custom tag to push to the BSR                                              |          |                                     |
 
 > These parameters are derived from [`action.yml`](./action.yml).
 
@@ -128,6 +129,26 @@ run `buf mod update` so that the downstream module uses the upstream module's la
 is not supported by `buf-push-action` on its own - you'll need to stitch this functionality into
 your workflow on your own. For more details, see [this](https://github.com/bufbuild/buf/issues/838)
 discussion.
+
+### Push with a custom tag
+
+If you want to push a module with a tag other than the Git commit SHA (e.g. for using semantic
+versioning), you can set the `tag` property to the desired tag:
+
+```yaml
+steps:
+  # Run `git checkout`
+  - uses: actions/checkout@v2
+  # Install the `buf` CLI
+  - uses: bufbuild/buf-setup-action@v1
+  # Push only the Input in `proto` to the BSR
+  - uses: bufbuild/buf-push-action@v1
+    with:
+      input: proto
+      buf_token: ${{ secrets.BUF_TOKEN }}
+      # if triggered by a release tag, push with the tag
+      tag: ${{ github.ref_name }}
+```
 
 ### Validate before push
 
