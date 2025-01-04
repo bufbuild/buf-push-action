@@ -39,16 +39,16 @@ fi
 
 BUF_ARGS=("--tag" "${GITHUB_SHA}")
 if [ "${DRAFT}" == "true" ]; then
-  # Check that --draft is supported by running "buf push --draft example --help"
-  # and checking for "unknown flag: --draft" in the output.
+  # Check that --label is supported by running "buf push --label example --help"
+  # and checking for "unknown flag: --label" in the output.
   set +e
-  BUF_HELP_OUTPUT="$("${BUF_COMMAND}" push --draft example --help 2>&1)"
+  BUF_HELP_OUTPUT="$("${BUF_COMMAND}" push --label example --help 2>&1)"
   set -e
   if [[ "${BUF_HELP_OUTPUT}" == *"unknown flag: --draft"* ]]; then
-    fail "The installed version of buf does not support setting the draft. Please use buf v1.7.0 or newer."
+    fail "The installed version of buf does not support setting the label. Please use buf v1.32.0 or newer."
   fi
 
-  BUF_ARGS=("--draft" "${GITHUB_REF_NAME}")
+  BUF_ARGS=("--label" "${GITHUB_REF_NAME}")
 fi
 
 if [ -n "${CREATE_VISIBILITY}" ]; then
