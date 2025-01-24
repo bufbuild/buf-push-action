@@ -3,7 +3,7 @@
 > [!NOTE]
 > This action has been deprecated in favor of the [`buf-action`][buf-action] which combines the
 > functionality of `buf-push-action` with the ability to run Buf commands in the same step. Please
-> see the [`buf-action`][buf-action] documentation for more information.
+> see the [migration guide][buf-action-migration] for more information.
 
 This Action enables you to push [Buf modules][modules] to the [Buf Schema Registry][bsr] (BSR)
 Pushed modules are created with the Git commit SHA as the module tag.
@@ -167,6 +167,7 @@ jobs:
 ```
 
 [buf-action]: https://github.com/bufbuild/buf-action
+[buf-action-migration]: https://github.com/bufbuild/buf-action/blob/main/MIGRATION.md#buf-push-action
 [breaking]: https://docs.buf.build/breaking
 [bsr]: https://docs.buf.build/bsr
 [bsr-token]: https://docs.buf.build/bsr/authentication
